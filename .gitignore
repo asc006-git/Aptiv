@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Generated benchmark files
+data/large_candidates.jsonl
+data/*.jsonl
+
+# Temporary files
+*.tmp
+*.temp
+analyze_data.py
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.venv
+venv/
+env/
+
+# Logs
+*.log
