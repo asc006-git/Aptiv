@@ -140,6 +140,16 @@ class CandidateParser:
         features['notice_period_days'] = signals.get('notice_period_days', 0)
         features['willing_to_relocate'] = signals.get('willing_to_relocate', False)
         features['open_to_work_flag'] = signals.get('open_to_work_flag', False)
+
+        # Hidden Gem signals
+        features['profile_views_received_30d'] = signals.get('profile_views_received_30d', 0)
+        features['saved_by_recruiters_30d'] = signals.get('saved_by_recruiters_30d', 0)
+        features['search_appearance_30d'] = signals.get('search_appearance_30d', 0)
+        features['connection_count'] = signals.get('connection_count', 0)
+        features['endorsements_received'] = signals.get('endorsements_received', 0)
+        features['skill_assessment_scores'] = signals.get('skill_assessment_scores', {})
+        features['preferred_work_mode'] = signals.get('preferred_work_mode', '')
+        features['applications_submitted_30d'] = signals.get('applications_submitted_30d', 0)
         
         sal = signals.get('expected_salary_range_inr_lpa', {})
         features['expected_salary_min'] = sal.get('min', 0.0)
@@ -170,6 +180,43 @@ class CandidateParser:
         
         # 3. Trust error
         features['flag_trust_error'] = not is_email and not is_phone and not is_linkedin
+
+        # Honeypot H1: timeline inflated
+        total_career_months = sum(job.get('duration_months', 0) or 0 for job in history)
+        exp_years = profile.get('years_of_experience', 0.0)
+        exp_months = exp_years * 12.0
+        any_job_over_total = False
+        if exp_months > 0:
+            for job in history:
+                job_dur = job.get('duration_months', 0) or 0
+                if job_dur > exp_months:
+                    any_job_over_total = True
+                    break
+        features['flag_honeypot_timeline_inflated'] = (
+            any_job_over_total or 
+            (exp_months > 0 and total_career_months > exp_months * 1.5)
+        )
+
+        # Honeypot H2: skill inflated
+        has_inflated_skill = False
+        for s in skills:
+            prof = s.get('proficiency', '')
+            dur = s.get('duration_months', -1)
+            if prof in ('advanced', 'expert') and dur == 0:
+                has_inflated_skill = True
+                break
+        features['flag_honeypot_skill_inflated'] = has_inflated_skill
+
+        # Honeypot H3: title mismatch
+        title_lower = profile.get('current_title', '').lower()
+        ENG_TITLE_WORDS = {'engineer', 'developer', 'scientist', 'architect',
+                           'researcher', 'data engineer', 'data scientist',
+                           'ml', 'machine learning', 'ai',
+                           'software', 'programmer', 'technologist',
+                           'full stack', 'fullstack', 'backend', 'frontend', 'devops',
+                           'infrastructure', 'platform'}
+        is_eng_title = any(w in title_lower for w in ENG_TITLE_WORDS)
+        features['flag_honeypot_title_mismatch'] = (total_matches >= 4 and not is_eng_title)
 
         # Basic Info
         features['candidate_id'] = cid
@@ -323,7 +370,10 @@ def parse_jsonl(file_path):
             c['flag_chronology_error'] or 
             c['flag_salary_error'] or 
             c['flag_trust_error'] or 
-            c['flag_duplicate_identity']
+            c['flag_duplicate_identity'] or
+            c['flag_honeypot_timeline_inflated'] or
+            c['flag_honeypot_skill_inflated'] or
+            c['flag_honeypot_title_mismatch']
         )
         
     # 3. Create Pandas DataFrame
@@ -341,7 +391,9 @@ def parse_jsonl(file_path):
             
     float_cols = ['profile_completeness_score', 'recruiter_response_rate', 'avg_response_time_hours', 
                   'github_activity_score', 'interview_completion_rate', 'offer_acceptance_rate', 
-                  'expected_salary_min', 'expected_salary_max', 'years_of_experience']
+                  'expected_salary_min', 'expected_salary_max', 'years_of_experience',
+                  'profile_views_received_30d', 'saved_by_recruiters_30d', 'search_appearance_30d',
+                  'connection_count', 'endorsements_received', 'applications_submitted_30d']
     for col in float_cols:
         if col in df.columns:
             df[col] = df[col].astype(np.float32)
