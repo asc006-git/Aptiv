@@ -1,0 +1,55 @@
+team_name: "Aptiv"
+
+primary_contact:
+  name: "Aptiv Team"
+  email: "aptiv@example.com"
+  phone: "+91-0000000000"
+
+team_members:
+  - name: "Aptiv Team"
+    email: "aptiv@example.com"
+    role: "ML Engineer"
+
+github_repo: "https://github.com/aptiv/redrob-ranker"
+
+sandbox_link: "https://huggingface.co/spaces/aptiv/redrob-ranker"
+
+reproduce_command: "python generate_submission.py --input data/candidates.jsonl --output submission.csv"
+
+compute:
+  platform: "Local Windows PC"
+  cpu_cores: 4
+  ram_gb: 16
+  python_version: "3.10.0"
+  os: "Windows 10"
+  uses_gpu_for_inference: false
+  has_network_during_ranking: false
+  pre_computation_required: false
+  pre_computation_time_minutes: 0
+
+ai_tools_used:
+  - "Claude"
+
+ai_usage_summary: |
+  Used Claude for code review, architectural discussion, and implementation
+  of submission compliance fixes and honeypot detection. No candidate data
+  was fed to any LLM.
+
+methodology_summary: |
+  Multi-signal rule-based ranker with 5 weighted scoring components:
+  skill match (0.40), production experience (0.25), retrieval/ranking
+  experience (0.15), behavioral signals (0.10), startup fit (0.10).
+  Risk penalty subtracts for chronology/salary/trust errors and
+  honeypot inconsistencies. Hidden Gem detection identifies candidates
+  undervalued by keyword ranking. RAP prioritizes recruiter outreach.
+  Narrative generation synthesizes archetype, strengths, risks, and
+  actionable recruiter guidance. Honeypot protection via timeline
+  consistency, skill-duration mismatch, and title-keyword alignment
+  checks integrated into the risk penalty.
+
+declarations:
+  read_submission_spec: true
+  code_is_original_work: true
+  no_collusion: true
+  honeypot_check_done: true
+  reproduction_tested: true

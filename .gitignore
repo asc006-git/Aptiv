@@ -7,6 +7,10 @@ __pycache__/
 # Jupyter Notebook
 .ipynb_checkpoints/
 
+# Generated output
+submission.csv
+data/temp_*.jsonl
+
 # Generated benchmark files
 data/large_candidates.jsonl
 data/*.jsonl
