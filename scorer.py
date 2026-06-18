@@ -99,7 +99,10 @@ class CandidateScorer:
 
     def compute_risk_penalty(self, df):
         """Computes Risk Penalty.
-        Aggregates flags for invalid data, timelines, or duplicate names.
+        Aggregates flags for invalid data or timelines.
+        Note: flag_duplicate_identity is excluded from penalties as it is
+        primarily a synthetic dataset artifact (generated name collisions).
+        It is retained for informational reporting only.
         """
         penalty = pd.Series(0.0, index=df.index)
         if 'flag_chronology_error' in df.columns:
@@ -108,8 +111,13 @@ class CandidateScorer:
             penalty += np.where(df['flag_salary_error'], 0.3, 0.0)
         if 'flag_trust_error' in df.columns:
             penalty += np.where(df['flag_trust_error'], 0.2, 0.0)
-        if 'flag_duplicate_identity' in df.columns:
-            penalty += np.where(df['flag_duplicate_identity'], 0.2, 0.0)
+        if 'flag_honeypot_timeline_inflated' in df.columns:
+            penalty += np.where(df['flag_honeypot_timeline_inflated'], 0.3, 0.0)
+        if 'flag_honeypot_skill_inflated' in df.columns:
+            penalty += np.where(df['flag_honeypot_skill_inflated'], 0.3, 0.0)
+        if 'flag_honeypot_title_mismatch' in df.columns:
+            penalty += np.where(df['flag_honeypot_title_mismatch'], 0.3, 0.0)
+        # flag_duplicate_identity excluded: synthetic dataset generation artifact
         return penalty
 
     def score_dataframe(self, df):
