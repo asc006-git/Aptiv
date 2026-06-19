@@ -110,14 +110,20 @@ def run_pipeline(input_path: Path, output_csv: Path, temp_jsonl: Path) -> pd.Dat
     narrative_time = time.perf_counter() - narrative_start
     logger.info(f"Generated narratives in {narrative_time:.3f}s")
 
-    submission = scored_df[["candidate_id", "rank", "final_score", 
-                            "archetype", "action_recommendation",
-                            "narrative_tier", "narrative", "narrative_strengths", 
-                            "narrative_risks", "narrative_behavioral", "narrative_recruitability",
-                            "strength_sources", "risk_sources",
-                            "hidden_gem_score", "is_hidden_gem", "hidden_gem_category",
-                            "hidden_gem_narrative",
-                            "rap_score", "rap_priority", "rap_action", "rap_rationale"]].copy()
+    # Collect available columns for the submission view
+    narrative_cols = ["candidate_id", "rank", "final_score",
+                      "archetype", "action_recommendation",
+                      "narrative_tier", "display_tier",
+                      "narrative", "positive_signals", "concerns",
+                      "jd_sentence",
+                      "narrative_strengths", "narrative_risks",
+                      "narrative_behavioral", "narrative_recruitability",
+                      "strength_sources", "risk_sources",
+                      "hidden_gem_score", "is_hidden_gem", "hidden_gem_category",
+                      "hidden_gem_narrative",
+                      "rap_score", "rap_priority", "rap_action", "rap_rationale"]
+    available = [c for c in narrative_cols if c in scored_df.columns]
+    submission = scored_df[available].copy()
     submission = submission.rename(columns={"final_score": "score"})
 
     validate_dataframe(submission, "Submission")
@@ -175,15 +181,23 @@ def main():
 
         submission, total_time, mem_mb = run_pipeline(args.input, args.output, args.temp_jsonl)
 
-        print("\n" + "=" * 80)
+        print("\n" + "=" * 100)
         print(f"TOP {args.top_k} CANDIDATES")
-        print("=" * 80)
+        print("=" * 100)
         top_k = submission.head(args.top_k)
         for _, row in top_k.iterrows():
-            print(f"Rank {row['rank']:3d} | {row['candidate_id']:>12} | Score: {row['score']:.6f} | Archetype: {row['archetype']} | Action: {row['action_recommendation']}")
-            print(f"Narrative:\n{row['narrative']}")
-            print("-" * 80)
-        print("=" * 80)
+            display_tier = row.get('display_tier', row.get('narrative_tier', ''))
+            arch = row.get('archetype', '')
+            act = row.get('action_recommendation', '')
+            print(f"Rank {row['rank']:3d} | {row['candidate_id']:>12} | Score: {row['score']:.6f}")
+            print(f"  Tier: {display_tier} | Archetype: {arch} | Action: {act}")
+            if 'positive_signals' in row and isinstance(row['positive_signals'], list) and row['positive_signals']:
+                print(f"  Signals: {'; '.join(row['positive_signals'][:3])}")
+            if 'concerns' in row and isinstance(row['concerns'], list) and row['concerns']:
+                print(f"  Concerns: {'; '.join(row['concerns'][:2])}")
+            print(f"  {row['narrative']}")
+            print("-" * 100)
+        print("=" * 100)
 
         print("\n" + "=" * 60)
         print("PIPELINE SUMMARY")
