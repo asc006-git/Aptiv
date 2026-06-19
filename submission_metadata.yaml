@@ -1,16 +1,16 @@
-team_name: "Aptiv"
+team_name: "Adhyatma Singh Chauhan"
 
 primary_contact:
-  name: "Aptiv Team"
-  email: "aptiv@example.com"
-  phone: "+91-0000000000"
+  name: "Adhyatma Singh Chauhan"
+  email: "adhyatmasinghchauhan20031@gmail.com"
+  phone: "+91-7388117471"
 
 team_members:
-  - name: "Aptiv Team"
-    email: "aptiv@example.com"
-    role: "ML Engineer"
+  - name: "NA"
+    email: "NA"
+    role: "NA"
 
-github_repo: "https://github.com/aptiv/redrob-ranker"
+github_repo: "https://github.com/asc006-git/Aptiv"
 
 sandbox_link: "https://huggingface.co/spaces/aptiv/redrob-ranker"
 
@@ -42,8 +42,12 @@ methodology_summary: |
   Risk penalty subtracts for chronology/salary/trust errors and
   honeypot inconsistencies. Hidden Gem detection identifies candidates
   undervalued by keyword ranking. RAP prioritizes recruiter outreach.
-  Narrative generation synthesizes archetype, strengths, risks, and
-  actionable recruiter guidance. Honeypot protection via timeline
+  Narrative generation uses 8 structurally distinct templates with
+  hash-varied signal phrasing, per-candidate rank explainability
+  with sub-score breakdown and pool percentile context, and
+  proportional depth (top ranks receive richer analysis). Every
+  narrative includes at least one genuine concern derived from
+  candidate behavioral signals. Honeypot protection via timeline
   consistency, skill-duration mismatch, and title-keyword alignment
   checks integrated into the risk penalty.
 
