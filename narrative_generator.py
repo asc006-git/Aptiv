@@ -1,7 +1,23 @@
 import pandas as pd
 import numpy as np
 
-# Template variations for narrative diversity
+# ── Rank-Based Display Tiers (for Top 100) ──────────────────────────
+RANK_TIER_BOUNDS = [
+    (1, 10, "Elite Match"),
+    (11, 25, "Strong Match"),
+    (26, 50, "Recommended"),
+    (51, 75, "Potential Fit"),
+    (76, 100, "Consider"),
+]
+
+def assign_display_tier(rank):
+    for lo, hi, label in RANK_TIER_BOUNDS:
+        if lo <= rank <= hi:
+            return label
+    return "Consider"
+
+# ── Original tier logic (preserved for internal use) ────────────────
+
 THESIS_TEMPLATES = [
     "Classified as a **{arch}** ({tier_short}), this candidate is positioned well due to their {strengths_text}.",
     "As a **{arch}** ({tier_short}), this candidate brings {strengths_text}.",
@@ -55,43 +71,22 @@ def _select_template(templates, candidate_id):
         idx = 0
     return templates[idx]
 
+
 def assign_tiers(df):
-    """Assigns narrative tiers to candidates based on their final score rank
-    and data quality flags.
-    
-    Tiers are defined as:
-    - Tier 1: Interview Immediately (Top 2% of candidates)
-    - Tier 2: Strong Pipeline (Top 2% to 10% of candidates)
-    - Tier 3: Worth a Screen (Top 10% to 25% of candidates)
-    - Tier 4: Backup Pool (Top 25% to 75% of candidates)
-    - Tier 5: Not Recommended (Bottom 25% of candidates, or score < 0.1)
-    
-    Args:
-        df (pd.DataFrame): Scored candidates DataFrame, sorted by final_score descending.
-        
-    Returns:
-        pd.Series: Series of tier labels.
-    """
     total_candidates = len(df)
     if total_candidates == 0:
         return pd.Series(dtype=str)
-        
     tiers = np.empty(total_candidates, dtype=object)
     ranks = np.arange(1, total_candidates + 1)
-    
-    p2 = int(0.02 * total_candidates)
-    p10 = int(0.10 * total_candidates)
-    p25 = int(0.25 * total_candidates)
-    p75 = int(0.75 * total_candidates)
-    
+    p2 = max(1, int(0.02 * total_candidates))
+    p10 = max(1, int(0.10 * total_candidates))
+    p25 = max(1, int(0.25 * total_candidates))
+    p75 = max(1, int(0.75 * total_candidates))
     for i in range(total_candidates):
         score = df.iloc[i].get('final_score', 0.0)
-        
-        # Extremely low score goes directly to Tier 5
         if score < 0.1:
             tiers[i] = "Tier 5 - Not Recommended"
             continue
-            
         rank = ranks[i]
         if rank <= p2:
             tiers[i] = "Tier 1 - Interview Immediately"
@@ -103,8 +98,8 @@ def assign_tiers(df):
             tiers[i] = "Tier 4 - Backup Pool"
         else:
             tiers[i] = "Tier 5 - Not Recommended"
-            
     return pd.Series(tiers, index=df.index)
+
 
 def detect_archetype(row, score):
     """Detects exactly one primary recruiter archetype for a candidate based on profile signals.
@@ -156,35 +151,322 @@ def detect_archetype(row, score):
         return "Deep Technical Specialist"
     return "Startup Builder"
 
+
 def assign_action_guidance(row, tier, score):
-    """Determines actionable next steps for a recruiter based on tier, score, and risks."""
     has_real_errors = row.get('flag_chronology_error', False) or row.get('flag_salary_error', False) or row.get('flag_trust_error', False)
     notice = row.get('notice_period_days', 0)
     resp = row.get('recruiter_response_rate', 0.0)
-    
     if score < 0.1 or "Tier 5" in tier:
         return "Deprioritize"
-        
     if has_real_errors and score >= 0.4:
         return "Verify Before Interview"
-        
     if "Tier 1" in tier:
-        if resp >= 0.75:
-            return "Interview Immediately"
-        return "Priority Screen"
-        
+        return "Interview Immediately" if resp >= 0.75 else "Priority Screen"
     if "Tier 2" in tier:
         return "Priority Screen"
-        
     if "Tier 3" in tier:
-        if notice > 60:
-            return "Nurture Candidate"
-        return "Pipeline Candidate"
-        
-    if "Tier 4" in tier:
-        return "Pipeline Candidate"
-        
+        return "Nurture Candidate" if notice > 60 else "Pipeline Candidate"
     return "Pipeline Candidate"
+
+# ── Recruiter Archetype System (10 archetypes, scored approach) ────
+
+def detect_recruiter_archetype(row):
+    yoe = row.get('years_of_experience', 0.0)
+    score = row.get('final_score', 0.0)
+    is_hg = bool(row.get('is_hidden_gem', False))
+    hg_score = row.get('hidden_gem_score', 0.0)
+    startup_fit = row.get('score_startup_fit', 0.0)
+    behav = row.get('score_behavioral', 0.0)
+    resp_rate = row.get('recruiter_response_rate', 0.0)
+    open_flag = row.get('open_to_work_flag', False)
+    notice = row.get('notice_period_days', 0)
+    github = row.get('github_activity_score', -1.0)
+    match_skills = row.get('total_jd_skill_matches', 0)
+    has_assessments = bool(row.get('skill_assessment_scores', {}))
+    interview_rate = row.get('interview_completion_rate', 0.0)
+
+    has_high_risk_flag = (
+        row.get('flag_chronology_error', False) or
+        row.get('flag_salary_error', False) or
+        row.get('flag_honeypot_timeline_inflated', False) or
+        row.get('flag_honeypot_skill_inflated', False)
+    )
+    consulting = row.get('disq_only_consulting', False)
+    pure_research = row.get('disq_pure_research', False)
+    strong_sigs = github >= 50 or has_assessments or interview_rate >= 0.7
+
+    scores = {}
+
+    if resp_rate >= 0.5 and open_flag:
+        rf = resp_rate * 0.40 + behav * 0.30
+        if resp_rate >= 0.75:
+            rf += 0.30
+        scores["Recruiter Favorite"] = min(rf, 1.0)
+
+    if match_skills >= 3 and github >= 30:
+        pe = match_skills * 0.08 + min(github / 100, 1.0) * 0.10
+        if resp_rate < 0.3:
+            pe += 0.40
+        elif not open_flag:
+            pe += 0.30
+        elif resp_rate < 0.5:
+            pe += 0.15
+        scores["Passive Expert"] = min(pe, 1.0)
+
+    if score >= 0.4 and has_high_risk_flag:
+        hr = score * 0.40 + 0.50
+        scores["High Risk / High Reward"] = min(hr, 1.0)
+
+    if yoe >= 6 and not pure_research and score >= 0.4:
+        pv = min((yoe - 4) / 8, 1.0) * 0.40 + score * 0.40 + min(yoe / 10, 0.20)
+        scores["Production Veteran"] = min(pv, 1.0)
+
+    if 2 <= yoe <= 6 and behav >= 0.5:
+        gc = (1.0 - abs(yoe - 4.0) / 4.0) * 0.30 + behav * 0.25
+        gc += 0.30 if strong_sigs else 0.10
+        gc += 0.15 if open_flag else 0.0
+        scores["Growth Candidate"] = min(gc, 1.0)
+
+    if yoe < 4.5 and match_skills >= 2:
+        es = (1.0 - yoe / 6.0) * 0.30 + match_skills * 0.10 + min(github / 100, 1.0) * 0.15
+        es += 0.10 if has_assessments else 0.0
+        scores["Emerging Specialist"] = min(es, 1.0)
+
+    if startup_fit >= 0.75 and not consulting and yoe >= 2:
+        sb = startup_fit * 0.30 + (0.15 if not pure_research else 0.05) + min(yoe / 20, 0.15)
+        scores["Startup Builder"] = min(sb, 1.0)
+
+    if is_hg:
+        hg = hg_score / 100.0 * 0.60 + 0.15
+        scores["Hidden Gem"] = min(hg, 1.0)
+
+    if score >= 0.4 and not consulting and yoe >= 3:
+        pm = score * 0.30 + min(yoe / 12, 1.0) * 0.25 + 0.15
+        scores["Product-Minded Engineer"] = min(pm, 1.0)
+
+    if score >= 0.3:
+        scores["High Conviction Hire"] = score * 0.30
+
+    if scores:
+        return max(scores, key=scores.get)
+    return "Consider"
+
+
+# ── Signal Phrase Banks (hash-varied) ──────────────────────────────
+_VDB_PHRASES = [
+    "End-to-end retrieval and vector database expertise",
+    "Full-stack retrieval systems (vector DBs + dense retrieval)",
+    "Production retrieval pipelines and vector search",
+    "Vector database and dense retrieval experience",
+    "End-to-end search and vector database systems",
+]
+_EVAL_PHRASES = [
+    "Ranking evaluation and learning-to-rank experience",
+    "IR evaluation (NDCG/MRR) and ranking optimization",
+    "Learning-to-rank and retrieval evaluation expertise",
+    "Search quality evaluation and ranking pipelines",
+]
+_LLM_PHRASES = [
+    "LLM fine-tuning experience",
+    "Large language model fine-tuning",
+    "LLM adaptation and fine-tuning expertise",
+]
+_DS_PHRASES = [
+    "Distributed systems and inference optimization",
+    "Scalable ML systems and model serving",
+    "Distributed ML pipelines and inference infrastructure",
+]
+_NLP_PHRASES = [
+    "NLP and information retrieval background",
+    "Natural language processing and search expertise",
+    "Text processing and information retrieval experience",
+]
+_PY_PHRASES = [
+    "Strong Python proficiency",
+    "Production Python engineering skills",
+    "Python-based ML development expertise",
+]
+
+# ── JD alignment phrases (expanded with candidate-specific context injection) ──
+_JD_FOUNDING_PHRASES = [
+    "Profile signals align with the founding-team, high-autonomy environment described in the JD",
+    "Profile signals match the JD's preference for founding-team, high-autonomy settings",
+    "Fits the high-autonomy, founding-team context emphasized in the JD",
+    "Signals indicate comfort with the JD's described founding-team environment requiring high autonomy",
+    "Aligned with the JD's call for a founding-team engineer comfortable with high autonomy",
+    "Behavioral profile suggests fit for the high-autonomy, founding-team role described in the JD",
+    "The candidate's profile mirrors the JD's founding-team profile where high autonomy is expected",
+    "Engagement signals point to a strong fit for the JD's high-autonomy, founding-team environment",
+    "This candidate's profile reads like the kind of founder-oriented engineer the JD describes — high autonomy, product-aware, delivery-focused",
+    "The JD explicitly emphasizes 'scrappy product-engineering attitude' — this candidate's trajectory demonstrates exactly that balance",
+    "Founding-team dynamic described in the JD requires someone who can toggle between deep technical work and pragmatic shipping; this candidate fits that profile",
+    "The JD's 'vibe check' section stresses async communication and fast iteration — behavioral signals here are consistent with that environment",
+]
+
+_JD_PRODUCTION_PHRASES = [
+    "Production experience with retrieval systems aligns with the JD's emphasis on shipped systems over pure research",
+    "The JD stresses shipped systems over research — this candidate's production background matches that preference",
+    "Practical deployment experience aligns with the JD's stated need for engineering that ships, not just researches",
+    "Track record of building production ML systems matches the JD's emphasis on tangible delivery",
+    "The candidate's history of deploying retrieval systems into production fits the JD's shipper-over-researcher ideal",
+    "Production engineering background resonates with the JD's focus on real-world system delivery",
+    "The JD explicitly warns against 'framework enthusiasts' and 'people who have only worked at consulting firms'; this candidate's hands-on product experience addresses that concern directly",
+    "This candidate has shipped real ranking or search systems to production — exactly the kind of tangible output the JD prioritizes over 'researcher' archetypes",
+    "The JD's core distinction is between researchers who publish and engineers who ship; this candidate clearly lands on the shipper side of that divide",
+    "Deploying ML systems to real users at meaningful scale aligns with the first-90-day mandate described in the JD",
+]
+
+def _pick_phrase(phrases, cid, offset=0):
+    idx = (hash(str(cid)) + offset) % len(phrases) if cid else 0
+    return phrases[idx]
+
+
+def get_positive_signals(row, max_signals=5):
+    signals = []
+    cid = row.get('candidate_id', '')
+
+    if row.get('match_vector_db', False) and row.get('match_embeddings', False):
+        signals.append(_pick_phrase(_VDB_PHRASES, cid, 0))
+    elif row.get('match_vector_db', False):
+        signals.append(_pick_phrase(_VDB_PHRASES, cid, 2))
+
+    if row.get('match_evaluation', False):
+        has_ltr = row.get('match_learning_to_rank', False)
+        if has_ltr:
+            signals.append(_pick_phrase(_EVAL_PHRASES, cid, 1))
+        else:
+            signals.append("Ranking evaluation knowledge (NDCG/MRR)")
+
+    if row.get('match_llm_finetune', False):
+        signals.append(_pick_phrase(_LLM_PHRASES, cid, 3))
+
+    if row.get('match_distributed_systems', False):
+        signals.append(_pick_phrase(_DS_PHRASES, cid, 4))
+
+    if row.get('match_nlp_ir', False):
+        signals.append(_pick_phrase(_NLP_PHRASES, cid, 5))
+
+    if row.get('match_python', False):
+        signals.append(_pick_phrase(_PY_PHRASES, cid, 6))
+
+    yoe = row.get('years_of_experience', 0.0)
+    if yoe >= 8:
+        signals.append(f"{yoe:.0f} years of industry experience")
+    elif yoe >= 5:
+        signals.append(f"{yoe:.0f} years of applied ML experience")
+
+    resp = row.get('recruiter_response_rate', 0.0)
+    if resp >= 0.8:
+        signals.append(f"Highly responsive to outreach ({resp:.0%})")
+    elif resp >= 0.5:
+        signals.append(f"Responsive to recruiter messages ({resp:.0%})")
+
+    gh = row.get('github_activity_score', -1.0)
+    if gh >= 70:
+        signals.append("Active open-source contributor")
+
+    if row.get('score_startup_fit', 0.0) >= 0.8:
+        startup_variants = [
+            "Startup-friendly profile signals",
+            "Career history shows product-company DNA — fits the founding-team ethos",
+            "Experience spans early-stage environments which maps to the JD's 'scrappy product-engineering' language",
+        ]
+        signals.append(startup_variants[(hash(str(cid)) + 3) % len(startup_variants)])
+
+    open_flag = row.get('open_to_work_flag', False)
+    if open_flag:
+        otw_variants = [
+            "Actively open to work",
+            "Marked as available — recruiter outreach likely to get a response",
+            "Open-to-work flag signals active job search, reducing sourcing friction",
+        ]
+        signals.append(otw_variants[(hash(str(cid)) + 7) % len(otw_variants)])
+
+    # Inject specific skill names for variety
+    raw_skills = row.get('skills_listed', [])
+    if raw_skills and len(signals) < max_signals:
+        skill_sample = raw_skills[:3]
+        skill_variants = [
+            f"Hands-on with {', '.join(skill_sample)}",
+            f"Technical stack includes {', '.join(skill_sample)}",
+        ]
+        signals.append(skill_variants[(hash(str(cid)) + 11) % len(skill_variants)])
+
+    return signals[:max_signals]
+
+
+def get_negative_signals(row):
+    concerns = []
+    if row.get('flag_chronology_error', False):
+        concerns.append("Timeline inconsistencies in career history")
+    if row.get('flag_salary_error', False):
+        concerns.append("Salary expectation data inconsistency")
+    if row.get('flag_trust_error', False):
+        concerns.append("No verified contact channels (email/phone/LinkedIn)")
+    if row.get('flag_honeypot_timeline_inflated', False):
+        concerns.append("Career timeline anomaly detected")
+    if row.get('flag_honeypot_skill_inflated', False):
+        concerns.append("Expert proficiency with zero duration")
+    if row.get('flag_honeypot_title_mismatch', False):
+        concerns.append("Keyword count inconsistent with current role")
+
+    if row.get('disq_only_consulting', False):
+        concerns.append("Consulting-only background")
+    if row.get('disq_pure_research', False):
+        concerns.append("Research-heavy profile — limited production deployment")
+    if row.get('disq_title_chaser', False):
+        concerns.append("Short tenure pattern across roles")
+    if row.get('disq_domain_mismatch', False):
+        concerns.append("CV/robotics focus rather than NLP/IR/ranking")
+    if row.get('disq_inactive_coder', False):
+        concerns.append("Potential hands-on coding gap")
+
+    resp = row.get('recruiter_response_rate', 0.0)
+    if 0.0 < resp < 0.3:
+        concerns.append(f"Low recruiter response rate ({resp:.0%})")
+    last_active = row.get('last_active_days_ago', -1)
+    if last_active > 90:
+        concerns.append(f"Inactive on platform ({last_active} days)")
+    notice = row.get('notice_period_days', 0)
+    if notice > 60:
+        concerns.append(f"Extended notice period ({notice} days)")
+    elif notice > 30:
+        concerns.append(f"Moderate notice period ({notice} days)")
+    salary_min = row.get('expected_salary_min', 0.0)
+    if salary_min > 40:
+        concerns.append(f"Salary expectation ({salary_min:.0f} LPA min) — verify budget alignment")
+
+    return concerns
+
+
+def get_additional_concerns(row):
+    """Generate additional concerns from subtle signals so every candidate has at least one."""
+    extras = []
+    if not row.get('open_to_work_flag', False):
+        extras.append("Not marked as open to work")
+    if row.get('profile_completeness_score', 100) < 60:
+        extras.append(f"Profile only {row.get('profile_completeness_score', 0):.0f}% complete")
+    if not row.get('match_python', False):
+        extras.append("No explicit Python skills listed")
+    if not row.get('match_vector_db', False) and not row.get('match_embeddings', False):
+        extras.append("No vector DB or embedding experience listed")
+    if row.get('github_activity_score', -1) < 30 and row.get('github_activity_score', -1) >= 0:
+        extras.append("Limited public code contributions")
+    if row.get('applications_submitted_30d', 999) == 0:
+        extras.append("No recent job applications on platform")
+    if row.get('total_jd_skill_matches', 0) <= 2:
+        extras.append(f"Only {row.get('total_jd_skill_matches', 0)} of 9 JD skill categories matched")
+    gh = row.get('github_activity_score', -1)
+    if gh < 0:
+        extras.append("No GitHub profile linked")
+    loc = str(row.get('location', '')).lower()
+    preferred = ['pune', 'noida', 'bangalore', 'bengaluru', 'mumbai', 'delhi', 'gurgaon', 'gurugram', 'hyderabad', 'chennai']
+    if not any(c in loc for c in preferred):
+        extras.append(f"Located outside preferred Indian tech hubs ({loc or 'unknown'})")
+    if row.get('interview_completion_rate', 1.0) < 0.5:
+        extras.append(f"Low interview completion rate ({row.get('interview_completion_rate', 0):.0%})")
+    return extras
+
 
 def generate_candidate_narratives(df):
     """Generates natural language candidate narratives and recruiter briefings.
@@ -467,3 +749,4 @@ def generate_candidate_narratives(df):
     out_df['narrative'] = narratives
     
     return out_df
+
