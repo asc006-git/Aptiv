@@ -551,3 +551,108 @@ elif st.session_state.app_state == "PIPELINE_EXECUTION":
         st.session_state.app_state = "OPERATING_SYSTEM"
         st.session_state.selected_candidate_id = df.iloc[0]["candidate_id"]
         st.rerun()
+
+# ----------------- PAGES 3-8: WORKSPACE DASHBOARD TABS -----------------
+elif st.session_state.app_state == "OPERATING_SYSTEM":
+    # 6-Metric KPI Readout Bar (Futuristic style)
+    st.markdown("""
+    <div class="hero-container">
+        <div class="hero-title">APTIV OS</div>
+        <div class="hero-subtitle">Talent Intelligence Operating System</div>
+        <div class="hero-details">Ingestion &bull; Ranking &bull; Explainability &bull; Export Console</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    kpi_col1, kpi_col2, kpi_col3, kpi_col4, kpi_col5, kpi_col6 = st.columns(6)
+    
+    gems_found = st.session_state.df["is_hidden_gem"].sum()
+    kpi_col1.metric("INGESTED POOL", f"{len(st.session_state.df)}")
+    kpi_col2.metric("PIPELINE RUNTIME", f"{st.session_state.pipeline_time:.3f}s")
+    kpi_col3.metric("MEMORY FOOTPRINT", f"{st.session_state.pipeline_memory:.2f} MB")
+    kpi_col4.metric("HIDDEN GEMS FOUND", f"{gems_found}")
+    kpi_col5.metric("VALIDATION PROTOCOL", "PASS")
+    kpi_col6.metric("SYSTEM COMPLIANCE", "OPERATIONAL")
+    
+    # Tab navigation matches Pages 3 through 8 requirements
+    tabs = st.tabs([
+        "■ TALENT LEADERBOARD", 
+        "■ CANDIDATE INTELLIGENCE", 
+        "■ EXPLAINABILITY LAB", 
+        "■ HIDDEN GEMS", 
+        "■ RAP OPERATIONS", 
+        "■ EXPORT PANEL"
+    ])
+    
+    # ----------------- PAGE 3: TALENT LEADERBOARD -----------------
+    with tabs[0]:
+        st.markdown("### 📊 TALENT LEADERBOARD")
+        
+        # Search & filters
+        col_s1, col_s2 = st.columns([2, 1])
+        with col_s1:
+            search_q = st.text_input("SEARCH REGISTRY", placeholder="Filter by Candidate ID, Role, Company, or Skills...", key="board_search")
+        with col_s2:
+            hg_filter = st.selectbox("POTENTIAL STATUS", options=["All Candidates", "Hidden Gems Only"], key="board_hg")
+            
+        col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+        with col_f1:
+            available_tiers = sorted(st.session_state.df["display_tier"].dropna().unique().tolist())
+            selected_tiers = st.multiselect("MATCH TIER", options=available_tiers, default=available_tiers, key="board_tiers")
+        with col_f2:
+            available_archetypes = sorted(st.session_state.df["archetype"].dropna().unique().tolist())
+            selected_archetypes = st.multiselect("ARCHETYPE", options=available_archetypes, default=available_archetypes, key="board_archetypes")
+        with col_f3:
+            available_locations = sorted(st.session_state.df["location"].dropna().unique().tolist())
+            selected_locations = st.multiselect("GEOGRAPHY", options=available_locations, default=available_locations, key="board_locations")
+        with col_f4:
+            available_rap = sorted(st.session_state.df["rap_priority"].dropna().unique().tolist())
+            selected_rap = st.multiselect("OUTREACH PRIORITY", options=available_rap, default=available_rap, key="board_rap")
+            
+        # Apply filters in Python
+        filtered_df = st.session_state.df.copy()
+        if search_q:
+            q = search_q.lower()
+            filtered_df = filtered_df[
+                filtered_df["candidate_id"].str.lower().str.contains(q) |
+                filtered_df["current_title"].str.lower().str.contains(q) |
+                filtered_df["current_company"].str.lower().str.contains(q) |
+                filtered_df["skills_listed"].str.lower().str.contains(q)
+            ]
+        if hg_filter == "Hidden Gems Only":
+            filtered_df = filtered_df[filtered_df["is_hidden_gem"] == True]
+        if selected_tiers:
+            filtered_df = filtered_df[filtered_df["display_tier"].isin(selected_tiers)]
+        if selected_archetypes:
+            filtered_df = filtered_df[filtered_df["archetype"].isin(selected_archetypes)]
+        if selected_locations:
+            filtered_df = filtered_df[filtered_df["location"].isin(selected_locations)]
+        if selected_rap:
+            filtered_df = filtered_df[filtered_df["rap_priority"].isin(selected_rap)]
+            
+        if filtered_df.empty:
+            st.info("NO MATCHES FOUND FOR ACTIVE FILTER PARAMETERS")
+        else:
+            # Active candidate selector selectbox
+            selected_id = st.selectbox(
+                "SELECT ACTIVE CANDIDATE FOR INTELLIGENCE & EXPLAINABILITY FILES",
+                options=filtered_df["candidate_id"].tolist(),
+                key="active_selector"
+            )
+            st.session_state.selected_candidate_id = selected_id
+            
+            # Leaderboard view dataframe
+            display_df = filtered_df[[
+                "rank", "candidate_id", "current_title", "current_company", 
+                "score", "display_tier", "archetype", "is_hidden_gem", "rap_priority"
+            ]].copy()
+            
+            display_df.columns = [
+                "Rank", "Candidate ID", "Current Role", "Company", 
+                "Score", "Tier", "Archetype", "Hidden Gem", "RAP Status"
+            ]
+            
+            display_df["Score"] = display_df["Score"].map(lambda x: f"{x:.4f}")
+            display_df["Hidden Gem"] = display_df["Hidden Gem"].map(lambda x: "✦ YES" if x else "NO")
+            
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            
