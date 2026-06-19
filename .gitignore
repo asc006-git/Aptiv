@@ -38,3 +38,8 @@ env/
 
 # Logs
 *.log
+
+# Build/temp artifacts
+build_commit.py
+ng_target.py
+*.bak
