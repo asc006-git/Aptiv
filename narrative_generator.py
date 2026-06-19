@@ -673,6 +673,155 @@ def _format_jd_text(markers, row, variant_idx):
 
 # ── Recruiter Action Text ──────────────────────────────────────────
 
+
+def _format_action_text(action, row):
+    action_labels = {
+        "Interview Immediately": "Interview Immediately",
+        "Priority Screen": "Priority Screen",
+        "Verify Before Interview": "Verify Before Interview",
+        "Pipeline Candidate": "Pipeline Candidate",
+        "Nurture Candidate": "Nurture Candidate",
+        "Deprioritize": "Deprioritize",
+    }
+    label = action_labels.get(action, "Standard outreach")
+    cid = str(row.get('candidate_id', ''))
+    resp = row.get('recruiter_response_rate', 0.0)
+    notice = row.get('notice_period_days', 0)
+    open_flag = row.get('open_to_work_flag', False)
+    details = []
+    if resp >= 0.7:
+        details.append(f"{resp:.0%} response rate")
+    if open_flag:
+        details.append("open to work")
+    if notice <= 30:
+        details.append(f"{notice}-day notice")
+    detail_str = f" ({'; '.join(details)})" if details else ""
+
+    prefixes = [
+        "Recommended",
+        "Next step",
+        "Suggested action",
+        "Recommendation",
+    ]
+    prefix = prefixes[(hash(str(cid)) + 13) % len(prefixes)]
+    return f"{prefix}: {label}{detail_str}"
+
+# ── Rank Explainability ──────────────────────────────────────────
+
+def _compute_percentile(rank, total_pool):
+    return (1 - (rank - 1) / total_pool) * 100
+
+
+def _format_sub_scores(row):
+    skill = row.get('score_skill_match', 0.0) * 40
+    exp = row.get('score_production_experience', 0.0) * 25
+    ret = row.get('score_retrieval_ranking', 0.0) * 15
+    behav = row.get('score_behavioral', 0.0) * 10
+    startup = row.get('score_startup_fit', 0.0) * 10
+    pen = row.get('penalty_risk', 0.0) * 100
+    return f"Skills={skill:.0f}/40, Exp={exp:.0f}/25, Retrieval={ret:.0f}/15, Signals={behav:.0f}/10, Fit={startup:.0f}/10", pen
+
+# ── Pool Statistics Cache ──────────────────────────────────────────
+_pool_stats = None
+
+
+def _build_rank_why(row, rank, pool_stats):
+    """Explain why this candidate got this rank based on their signal profile."""
+    percentile = _compute_percentile(rank, pool_stats['total'])
+    sub_score_str, penalty = _format_sub_scores(row)
+    diff_parts = []
+
+    skill = row.get('score_skill_match', 0.0)
+    exp = row.get('score_production_experience', 0.0)
+    ret = row.get('score_retrieval_ranking', 0.0)
+    behav = row.get('score_behavioral', 0.0)
+    startup = row.get('score_startup_fit', 0.0)
+
+    top_component = max([
+        ('skills', skill - pool_stats['mean_skill']),
+        ('experience', exp - pool_stats['mean_exp']),
+        ('retrieval/ranking', ret - pool_stats['mean_retrieval']),
+        ('signals', behav - pool_stats['mean_behav']),
+        ('startup fit', startup - pool_stats['mean_startup']),
+    ], key=lambda x: x[1])
+
+    worst_component = min([
+        ('skills', skill - pool_stats['mean_skill']),
+        ('experience', exp - pool_stats['mean_exp']),
+        ('retrieval/ranking', ret - pool_stats['mean_retrieval']),
+        ('signals', behav - pool_stats['mean_behav']),
+        ('startup fit', startup - pool_stats['mean_startup']),
+    ], key=lambda x: x[1])
+
+    rank_lead_variants = [
+        f"Ranked #{rank}",
+        f"Position #{rank}",
+        f"#{rank} in ranking",
+        f"Slot #{rank}",
+    ]
+    rank_prefix = rank_lead_variants[(hash(str(row.get('candidate_id', ''))) + 23) % len(rank_lead_variants)]
+
+    if percentile >= 99:
+        diff_parts.append(f"{rank_prefix} \u2014 top {100 - percentile:.1f}% of {pool_stats['total']:,} candidates")
+    else:
+        diff_parts.append(f"{rank_prefix} \u2014 top {100 - percentile:.2f}% of {pool_stats['total']:,} candidates")
+
+    diff_parts.append(f"Score breakdown: {sub_score_str}")
+    if penalty > 0:
+        diff_parts.append(f"Risk penalty: {penalty:.0f} pts deducted")
+
+    if top_component[1] > 0.05:
+        diff_prefixes = ["Differentiator", "Edge", "Strengths vs pool", "Advantage"]
+        dp = diff_prefixes[(hash(str(row.get('candidate_id', ''))) + 53) % len(diff_prefixes)]
+        diff_separator = rank % 4
+        if diff_separator == 0:
+            diff_parts.append(f"{dp}: strongest on {top_component[0]} ({top_component[1]:+.2f})")
+        elif diff_separator == 1:
+            diff_parts.append(f"{dp}: {top_component[0]} ({top_component[1]:+.2f} above mean)")
+        elif diff_separator == 2:
+            sep_str = "vs" if (rank + hash(str(row.get('candidate_id', '')))) % 2 == 0 else "over"
+            diff_parts.append(f"{dp}: {top_component[0]} leads pool {sep_str} mean ({top_component[1]:+.2f})")
+        else:
+            diff_parts.append(f"{dp}: strongest on {top_component[0]} ({top_component[1]:+.2f} above pool mean)")
+    if worst_component[1] < -0.05:
+        drag_prefixes = ["Drag", "Gap", "Weakness vs pool", "Area to probe"]
+        drp = drag_prefixes[(hash(str(row.get('candidate_id', ''))) + 59) % len(drag_prefixes)]
+        drag_separator = (rank + hash(str(row.get('candidate_id', '')))) % 2
+        if drag_separator == 0:
+            diff_parts.append(f"{drp}: {worst_component[0]} ({worst_component[1]:+.2f} below pool mean)")
+        else:
+            diff_parts.append(f"{drp}: {worst_component[0]} ({worst_component[1]:+.2f})")
+
+    return " | ".join(diff_parts)
+
+
+def _build_concern_text(all_concerns, max_items=2, cid=""):
+    if not all_concerns:
+        return ""
+    top = all_concerns[:max_items]
+    prefixes = ["Concern", "Flagged", "Watch item", "Note"]
+    pfx = prefixes[(hash(str(cid)) + 17) % len(prefixes)] if cid else "Concern"
+    if len(top) == 1:
+        return f"{pfx}: {top[0]}."
+    return f"{pfx}s: {'; '.join(top)}."
+
+
+def _build_strength_text(signals, max_items=None, cid=""):
+    if not signals:
+        return ""
+    if max_items and len(signals) > max_items:
+        signals = signals[:max_items]
+    prefixes = ["Strengths", "Highlights", "Strong areas", "Key assets"]
+    pfx = prefixes[(hash(str(cid)) + 19) % len(prefixes)] if cid else "Strengths"
+    if len(signals) == 1:
+        return f"{pfx}: {signals[0]}."
+    if len(signals) == 2:
+        return f"{pfx}: {signals[0]} and {signals[1]}."
+    return f"{pfx}: {', '.join(signals[:-1])}, and {signals[-1]}."
+
+# ── Main Narrative Generator (optimized: only top 100 get full narratives) ──
+
+
 def generate_candidate_narratives(df):
     """Generates natural language candidate narratives and recruiter briefings.
     
