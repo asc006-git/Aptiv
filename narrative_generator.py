@@ -17,61 +17,6 @@ def assign_display_tier(rank):
     return "Consider"
 
 # ── Original tier logic (preserved for internal use) ────────────────
-
-THESIS_TEMPLATES = [
-    "Classified as a **{arch}** ({tier_short}), this candidate is positioned well due to their {strengths_text}.",
-    "As a **{arch}** ({tier_short}), this candidate brings {strengths_text}.",
-    "This **{arch}** ({tier_short}) stands out with {strengths_text}.",
-    "Ranked as a **{arch}** ({tier_short}), the candidate demonstrates {strengths_text}.",
-    "A **{arch}** ({tier_short}) profile, strengthened by {strengths_text}.",
-]
-
-DIFF_TEMPLATES = [
-    "They stand out on the platform by being {behavior}.",
-    "What differentiates them: {behavior}.",
-    "Their platform presence shows {behavior}.",
-    "Notable platform signals: {behavior}.",
-    "A key differentiator is {behavior}.",
-]
-
-VERIFY_TEMPLATES_WITH_RISKS = [
-    "The recruiter should prioritarily {items}.",
-    "Immediate verification needed: {items}.",
-    "Before proceeding, address: {items}.",
-    "Recruiter must first {items}.",
-]
-
-VERIFY_TEMPLATES_NO_RISKS = [
-    "Verification of notice period and standard background check is recommended.",
-    "Standard background check and notice period verification advised.",
-    "Recommend standard verification of notice period and background.",
-    "Proceed with standard due diligence on notice period and background.",
-]
-
-NEXT_STEP_TEMPLATES = [
-    "Suggested Action: **{act}** to initiate next steps.",
-    "Recommended next step: **{act}**.",
-    "Action: **{act}** to move forward.",
-    "Proceed with: **{act}**.",
-]
-
-RECRUIT_TEMPLATES = [
-    "Notice period is {notice} days; {relocate_text_title}{salary_clause}.",
-    "Available in {notice} days, {relocate_text}{salary_clause}.",
-    "They {relocate_text_subj} with a {notice}-day notice{salary_clause}.",
-    "Notice: {notice} days. {relocate_text_title}{salary_clause}.",
-]
-
-# Deterministic template selector based on candidate_id hash
-def _select_template(templates, candidate_id):
-    """Select a template deterministically based on candidate_id."""
-    try:
-        idx = int(candidate_id.split('_')[-1]) % len(templates)
-    except:
-        idx = 0
-    return templates[idx]
-
-
 def assign_tiers(df):
     total_candidates = len(df)
     if total_candidates == 0:
@@ -100,58 +45,6 @@ def assign_tiers(df):
             tiers[i] = "Tier 5 - Not Recommended"
     return pd.Series(tiers, index=df.index)
 
-
-def detect_archetype(row, score):
-    """Detects exactly one primary recruiter archetype for a candidate based on profile signals.
-    
-    Supported archetypes:
-    - Strong Fit — Verify First
-    - Leadership-Oriented
-    - Production Retrieval Specialist
-    - Deep Technical Specialist
-    - Startup Builder
-    - High-Engagement Candidate
-    - Growth Candidate
-    """
-    yoe = row.get('years_of_experience', 0.0)
-    title = str(row.get('current_title', '')).lower()
-    
-    # 1. Strong Fit — Verify First
-    has_real_flags = row.get('flag_chronology_error', False) or row.get('flag_salary_error', False) or row.get('flag_trust_error', False)
-    if has_real_flags and score >= 0.5:
-        return "Strong Fit — Verify First"
-        
-    # 2. Leadership-Oriented
-    is_mgmt = any(word in title for word in ['manager', 'director', 'head', 'architect', 'lead', 'chief', 'vp', 'cto'])
-    if row.get('disq_inactive_coder', False) or (is_mgmt and yoe >= 6):
-        return "Leadership-Oriented"
-        
-    # 3. Production Retrieval Specialist
-    if row.get('match_vector_db', False) and row.get('match_embeddings', False) and yoe >= 4:
-        return "Production Retrieval Specialist"
-        
-    # 4. Deep Technical Specialist
-    if row.get('total_jd_skill_matches', 0) >= 5 or row.get('match_distributed_systems', False):
-        return "Deep Technical Specialist"
-        
-    # 5. Startup Builder
-    if row.get('score_startup_fit', 1.0) >= 0.8 and yoe >= 2 and not row.get('disq_only_consulting', False):
-        return "Startup Builder"
-        
-    # 6. High-Engagement Candidate
-    if row.get('recruiter_response_rate', 0.0) >= 0.8 and row.get('open_to_work_flag', False):
-        return "High-Engagement Candidate"
-        
-    # 7. Growth Candidate
-    if yoe < 4 or row.get('github_activity_score', 0.0) >= 0.6:
-        return "Growth Candidate"
-        
-    # Default fallbacks
-    if row.get('total_jd_skill_matches', 0) >= 3:
-        return "Deep Technical Specialist"
-    return "Startup Builder"
-
-
 def assign_action_guidance(row, tier, score):
     has_real_errors = row.get('flag_chronology_error', False) or row.get('flag_salary_error', False) or row.get('flag_trust_error', False)
     notice = row.get('notice_period_days', 0)
@@ -169,7 +62,6 @@ def assign_action_guidance(row, tier, score):
     return "Pipeline Candidate"
 
 # ── Recruiter Archetype System (10 archetypes, scored approach) ────
-
 def detect_recruiter_archetype(row):
     yoe = row.get('years_of_experience', 0.0)
     score = row.get('final_score', 0.0)
@@ -251,7 +143,6 @@ def detect_recruiter_archetype(row):
         return max(scores, key=scores.get)
     return "Consider"
 
-
 # ── Signal Phrase Banks (hash-varied) ──────────────────────────────
 _VDB_PHRASES = [
     "End-to-end retrieval and vector database expertise",
@@ -319,7 +210,6 @@ _JD_PRODUCTION_PHRASES = [
 def _pick_phrase(phrases, cid, offset=0):
     idx = (hash(str(cid)) + offset) % len(phrases) if cid else 0
     return phrases[idx]
-
 
 def get_positive_signals(row, max_signals=5):
     signals = []
@@ -394,7 +284,6 @@ def get_positive_signals(row, max_signals=5):
 
     return signals[:max_signals]
 
-
 def get_negative_signals(row):
     concerns = []
     if row.get('flag_chronology_error', False):
@@ -438,7 +327,6 @@ def get_negative_signals(row):
 
     return concerns
 
-
 def get_additional_concerns(row):
     """Generate additional concerns from subtle signals so every candidate has at least one."""
     extras = []
@@ -466,8 +354,6 @@ def get_additional_concerns(row):
     if row.get('interview_completion_rate', 1.0) < 0.5:
         extras.append(f"Low interview completion rate ({row.get('interview_completion_rate', 0):.0%})")
     return extras
-
-
 
 # ── JD-Aware Assessment ─────────────────────────────────────────────
 def get_jd_assessment_markers(row):
@@ -672,8 +558,6 @@ def _format_jd_text(markers, row, variant_idx):
     return " \u2014 " + "; ".join(parts)
 
 # ── Recruiter Action Text ──────────────────────────────────────────
-
-
 def _format_action_text(action, row):
     action_labels = {
         "Interview Immediately": "Interview Immediately",
@@ -707,10 +591,8 @@ def _format_action_text(action, row):
     return f"{prefix}: {label}{detail_str}"
 
 # ── Rank Explainability ──────────────────────────────────────────
-
 def _compute_percentile(rank, total_pool):
     return (1 - (rank - 1) / total_pool) * 100
-
 
 def _format_sub_scores(row):
     skill = row.get('score_skill_match', 0.0) * 40
@@ -724,6 +606,47 @@ def _format_sub_scores(row):
 # ── Pool Statistics Cache ──────────────────────────────────────────
 _pool_stats = None
 
+def _compute_pool_stats(df):
+    global _pool_stats
+    if _pool_stats is not None:
+        return _pool_stats
+    _pool_stats = {
+        'total': len(df),
+        'mean_skill': df['score_skill_match'].mean(),
+        'mean_exp': df['score_production_experience'].mean(),
+        'mean_retrieval': df['score_retrieval_ranking'].mean(),
+        'mean_behav': df['score_behavioral'].mean(),
+        'mean_startup': df['score_startup_fit'].mean(),
+    }
+    return _pool_stats
+
+# ── Structure Variants (8 designs) ──────────────────────────────
+STRUCTURE_VARIANTS = [
+    "STANDARD",
+    "CONCERN_FIRST",
+    "JD_FIRST",
+    "ACTION_FIRST",
+    "RANK_FIRST",
+    "SIGNAL_FIRST",
+    "NARRATIVE",
+    "CONCISE",
+]
+
+def _select_structure(rank):
+    """Select structure based on rank to ensure variety and rank-appropriate depth."""
+    if rank >= 76:
+        return "CONCISE"
+    if rank >= 51:
+        idx = (rank * 7 + 3) % 4
+        return ["CONCERN_FIRST", "RANK_FIRST", "SIGNAL_FIRST", "JD_FIRST"][idx]
+    if rank >= 26:
+        idx = (rank * 3 + 11) % 5
+        return ["STANDARD", "CONCERN_FIRST", "JD_FIRST", "ACTION_FIRST", "NARRATIVE"][idx]
+    if rank >= 11:
+        idx = (rank * 5 + 7) % 4
+        return ["STANDARD", "JD_FIRST", "ACTION_FIRST", "NARRATIVE"][idx]
+    idx = (rank * 13 + 5) % 3
+    return ["STANDARD", "NARRATIVE", "ACTION_FIRST"][idx]
 
 def _build_rank_why(row, rank, pool_stats):
     """Explain why this candidate got this rank based on their signal profile."""
@@ -794,7 +717,6 @@ def _build_rank_why(row, rank, pool_stats):
 
     return " | ".join(diff_parts)
 
-
 def _build_concern_text(all_concerns, max_items=2, cid=""):
     if not all_concerns:
         return ""
@@ -804,7 +726,6 @@ def _build_concern_text(all_concerns, max_items=2, cid=""):
     if len(top) == 1:
         return f"{pfx}: {top[0]}."
     return f"{pfx}s: {'; '.join(top)}."
-
 
 def _build_strength_text(signals, max_items=None, cid=""):
     if not signals:
@@ -820,287 +741,200 @@ def _build_strength_text(signals, max_items=None, cid=""):
     return f"{pfx}: {', '.join(signals[:-1])}, and {signals[-1]}."
 
 # ── Main Narrative Generator (optimized: only top 100 get full narratives) ──
-
-
 def generate_candidate_narratives(df):
-    """Generates natural language candidate narratives and recruiter briefings.
-    
-    Args:
-        df (pd.DataFrame): Scored candidates DataFrame.
-        
-    Returns:
-        pd.DataFrame: A copy of the DataFrame with new narrative and tier columns.
-    """
+    global _pool_stats
+    _pool_stats = None
+
     out_df = df.copy()
-    
-    # Ensure ranked
     if 'rank' not in out_df.columns:
         out_df = out_df.sort_values("final_score", ascending=False).reset_index(drop=True)
         out_df["rank"] = range(1, len(out_df) + 1)
-        
+
     out_df['narrative_tier'] = assign_tiers(out_df)
-    
-    narratives = []
-    archetypes = []
-    actions = []
-    narrative_strengths_list = []
-    narrative_risks_list = []
-    narrative_behavioral_list = []
-    narrative_recruitability_list = []
-    strength_sources_list = []
-    risk_sources_list = []
-    
-    records = out_df.to_dict('records')
-    for row in records:
-        score = row.get('final_score', 0.0)
+    pool_stats = _compute_pool_stats(out_df)
+
+    n = len(out_df)
+
+    # Vectorized: display_tier from rank
+    all_display_tiers = [assign_display_tier(r) for r in out_df['rank']]
+
+    # Pre-allocate all output arrays with defaults
+    display_tiers = list(all_display_tiers)
+
+    rank_col = out_df['rank'].values
+    score_col = out_df['final_score'].values
+    tier_col = out_df['narrative_tier'].values
+
+    default_arch = "Standard"
+    default_action = "Deprioritize"
+    empty_list = []
+    empty_str = ""
+
+    archetypes = [default_arch] * n
+    actions = [default_action] * n
+    pos_signals_list = [empty_list] * n
+    neg_signals_list = [empty_list] * n
+    jd_markers_list = [empty_list] * n
+    jd_texts_list = [empty_str] * n
+    narratives_list = [empty_str] * n
+    narrative_strengths_list = [empty_str] * n
+    narrative_risks_list = [empty_str] * n
+    narrative_behavioral_list = [empty_str] * n
+    narrative_recruitability_list = [empty_str] * n
+    strength_sources_list = [empty_str] * n
+    risk_sources_list = [empty_str] * n
+
+    # Only generate full narratives for top 100 (top slice for display needs)
+    top_n = min(n, 100)
+
+    for i in range(top_n):
+        row = out_df.iloc[i]
+        rank = int(rank_col[i])
+        score = float(score_col[i])
         yoe = row.get('years_of_experience', 0.0)
-        tier = row.get('narrative_tier', 'Tier 4 - Backup Pool')
-        tier_short = tier.split(" - ")[0]
-        
-        # 1. Archetype Assignment
-        arch = detect_archetype(row, score)
-        archetypes.append(arch)
-        
-        # 2. Action Recommendation Assignment
+        cid = row.get('candidate_id', '')
+        tier = str(tier_col[i])
+
+        display_tier = all_display_tiers[i]
+        arch = detect_recruiter_archetype(row)
         act = assign_action_guidance(row, tier, score)
-        actions.append(act)
-        
-        # 3. Strength Synthesis (replacing raw keyword dumping with synthesized concepts)
-        strengths = []
-        strength_src = []
-        
-        has_rag = row.get('match_vector_db', False) and row.get('match_embeddings', False)
-        if has_rag:
-            strengths.append("end-to-end retrieval engineering capability across search, ranking, and vector infrastructure")
-            strength_src.append("match_vector_db+match_embeddings")
-        elif row.get('match_vector_db', False):
-            strengths.append("familiarity with vector databases")
-            strength_src.append("match_vector_db")
-        elif row.get('match_embeddings', False):
-            strengths.append("dense retrieval and embeddings concepts")
-            strength_src.append("match_embeddings")
-            
-        if row.get('match_llm_finetune', False):
-            strengths.append("hands-on alignment in fine-tuning large language models")
-            strength_src.append("match_llm_finetune")
-            
-        has_ltr = row.get('match_learning_to_rank', False) and row.get('match_evaluation', False)
-        if has_ltr:
-            strengths.append("strong background in learning-to-rank systems and search relevance evaluation metrics")
-            strength_src.append("match_learning_to_rank+match_evaluation")
-        elif row.get('match_learning_to_rank', False):
-            strengths.append("familiarity with machine learning ranking models")
-            strength_src.append("match_learning_to_rank")
-        elif row.get('match_evaluation', False):
-            strengths.append("knowledge of offline-to-online ranking evaluation")
-            strength_src.append("match_evaluation")
-            
-        if row.get('match_distributed_systems', False):
-            strengths.append("ability to build distributed computing systems for high-throughput model inference")
-            strength_src.append("match_distributed_systems")
-            
-        if row.get('match_nlp_ir', False) and not has_rag:
-            strengths.append("foundations in natural language processing and search technology")
-            strength_src.append("match_nlp_ir")
-            
-        if row.get('match_python', False) and not (has_rag or has_ltr or row.get('match_llm_finetune', False)):
-            strengths.append("Python software engineering foundations")
-            strength_src.append("match_python")
-            
-        if yoe >= 8:
-            strengths.append("extensive tenure operating at scale in industry environments")
-            strength_src.append("years_of_experience")
-        elif yoe >= 4:
-            strengths.append("solid experience developing features in engineering settings")
-            strength_src.append("years_of_experience")
-            
-        if row.get('github_activity_score', -1.0) >= 0.7:
-            strengths.append("active open-source contribution patterns")
-            strength_src.append("github_activity_score")
-            
-        if row.get('recruiter_response_rate', 0.0) >= 0.85:
-            strengths.append("highly prompt communication habits")
-            strength_src.append("recruiter_response_rate")
-            
-        # Format strengths text
-        if strengths:
-            if len(strengths) == 1:
-                strengths_text = strengths[0]
-            elif len(strengths) == 2:
-                strengths_text = f"{strengths[0]} as well as {strengths[1]}"
+
+        archetypes[i] = arch
+        actions[i] = act
+
+        jd_markers = get_jd_assessment_markers(row)
+        jd_markers_list[i] = jd_markers
+
+        pos = get_positive_signals(row, max_signals=5)
+        pos_signals_list[i] = pos
+
+        jd_hard_neg = get_negative_signals(row)
+        soft_neg = get_additional_concerns(row)
+        all_c = jd_hard_neg + soft_neg
+        seen = set()
+        deduped = []
+        for c in all_c:
+            if c not in seen:
+                seen.add(c)
+                deduped.append(c)
+        neg_signals_list[i] = deduped
+
+        # Depth tiers
+        if rank <= 10:
+            max_sigs = 5
+        elif rank <= 33:
+            max_sigs = 4
+        elif rank <= 66:
+            max_sigs = 3
+        else:
+            max_sigs = 2
+        pos_trimmed = pos[:max_sigs]
+        concerns = deduped
+        if not concerns:
+            notice_val = row.get('notice_period_days', 30)
+            if notice_val > 30:
+                concerns.append(f"Notice period: {notice_val} days")
+            elif row.get('recruiter_response_rate', 0.5) < 0.5:
+                concerns.append(f"Response rate: {row.get('recruiter_response_rate', 0):.0%}")
+            elif row.get('total_jd_skill_matches', 9) < 5:
+                concerns.append(f"Matched {row.get('total_jd_skill_matches', 0)}/9 JD skill categories")
             else:
-                strengths_text = ", ".join(strengths[:-1]) + f", and {strengths[-1]}"
-        else:
-            strengths_text = "general profile layout alignment"
-            
-        narrative_strengths_list.append(strengths_text)
-        strength_sources_list.append(", ".join(strength_src) if strength_src else "None")
-        
-        # 4. Prioritized Risk Handling (focusing on high-priority items, ignoring duplicate name artifacts)
-        high_risks = []
-        low_risks = []
-        risk_src = []
-        
-        # Chronology, salary, and trust are critical flags
-        if row.get('flag_chronology_error', False):
-            high_risks.append("critical chronology timeline errors in career dates")
-            risk_src.append("flag_chronology_error")
-        if row.get('flag_salary_error', False):
-            high_risks.append("discrepancies in expected salary numbers")
-            risk_src.append("flag_salary_error")
-        if row.get('flag_trust_error', False):
-            high_risks.append("lack of verified contact channels or profile links")
-            risk_src.append("flag_trust_error")
-            
-        # Medium behavioral risks
-        last_active = row.get('last_active_days_ago', -1)
-        if last_active > 90:
-            high_risks.append("platform inactivity exceeding 3 months")
-            risk_src.append("last_active_days_ago")
-            
-        resp_rate = row.get('recruiter_response_rate', 0.0)
-        if resp_rate < 0.3:
-            high_risks.append("low response rate to platform outreach")
-            risk_src.append("recruiter_response_rate")
-            
-        # Low disqualification risks
-        if row.get('disq_title_chaser', False):
-            low_risks.append("a pattern of short tenures and frequent job hops")
-            risk_src.append("disq_title_chaser")
-        if row.get('disq_inactive_coder', False):
-            low_risks.append("potential hands-on coding gap due to management focus")
-            risk_src.append("disq_inactive_coder")
-        if row.get('disq_only_consulting', False):
-            low_risks.append("exclusively consulting firm background")
-            risk_src.append("disq_only_consulting")
-        if row.get('disq_pure_research', False):
-            low_risks.append("pure academic/research path with limited corporate engineering exposure")
-            risk_src.append("disq_pure_research")
-        if row.get('disq_domain_mismatch', False):
-            low_risks.append("focus in computer vision/robotics rather than search and ranking")
-            risk_src.append("disq_domain_mismatch")
-            
-        # Long notice period is a minor risk
-        notice = row.get('notice_period_days', 0)
-        if notice > 90:
-            low_risks.append(f"a lengthy notice period ({notice} days)")
-            risk_src.append("notice_period_days")
-            
-        # We explicitly de-emphasize duplicate identity flags if they appear to be dataset artifacts.
-        # We only list it as a minor note if there are no high risks.
-        if row.get('flag_duplicate_identity', False) and not (high_risks or low_risks):
-            # Dataset artifact warning
-            low_risks.append("potential duplicate identity (likely database artifact)")
-            risk_src.append("flag_duplicate_identity")
-            
-        # Synthesize risks text
-        all_risks = high_risks + low_risks
-        if all_risks:
-            if len(all_risks) == 1:
-                risks_text = f"Risks to note include {all_risks[0]}."
-            elif len(all_risks) == 2:
-                risks_text = f"Risks to note include {all_risks[0]} and {all_risks[1]}."
+                concerns.append("Requires culture-fit validation for founding-team dynamics")
+            neg_signals_list[i] = concerns
+
+        struct = _select_structure(rank)
+        jd_variant = (rank + hash(str(cid)) % 7) % 8
+        jd_text = _format_jd_text(jd_markers, row, jd_variant)
+        jd_texts_list[i] = jd_text
+
+        rank_why = _build_rank_why(row, rank, pool_stats)
+        concern_text = _build_concern_text(concerns, cid=str(cid))
+        strength_text = _build_strength_text(pos_trimmed, cid=str(cid))
+        action_text = _format_action_text(act, row)
+
+        # Vary the archetype prefix by candidate_id for opening diversity
+        arch_prefixes = ["", "Profile: ", "Candidate: ", ""]
+        arch_sep = arch_prefixes[(hash(str(cid)) + 29) % len(arch_prefixes)]
+
+        if struct == "STANDARD":
+            narratives_list[i] = f"[{display_tier}] {arch_sep}{arch}. {strength_text} {concern_text}{jd_text}. {rank_why}. {action_text}."
+        elif struct == "CONCERN_FIRST":
+            narratives_list[i] = f"[{display_tier}] {arch_sep}{arch}. {concern_text} Mitigating factors: {strength_text} {jd_text}. {rank_why}. {action_text}."
+        elif struct == "JD_FIRST":
+            jd_lead = jd_text.lstrip(" \u2014 ")
+            narratives_list[i] = f"[{display_tier}] {arch_sep}{arch}. {jd_lead}. {strength_text} {concern_text} {rank_why}. {action_text}."
+        elif struct == "ACTION_FIRST":
+            taglines = [f"Best action for this candidate:", f"Suggested approach:", ""]
+            tagline = taglines[(hash(str(cid)) + 31) % len(taglines)]
+            narratives_list[i] = f"[{display_tier}] {arch_sep}{arch}. {tagline} {action_text}. Rationale: {strength_text} {concern_text}{jd_text}. {rank_why}."
+        elif struct == "RANK_FIRST":
+            narratives_list[i] = f"[{display_tier}] {arch_sep}{arch}. {rank_why}. {strength_text} {concern_text}{jd_text}. {action_text}."
+        elif struct == "SIGNAL_FIRST":
+            signal_lead = pos_trimmed[0] if pos_trimmed else "JD-relevant profile signals"
+            other_sigs_list = pos_trimmed[1:] if len(pos_trimmed) > 1 else []
+            base = f"[{display_tier}] {arch_sep}{arch}. Key signal: {signal_lead}. "
+            if other_sigs_list:
+                base += f"{_build_strength_text(other_sigs_list, cid=str(cid))} "
+            base += f"{concern_text}{jd_text}. {rank_why}. {action_text}."
+            narratives_list[i] = base
+        elif struct == "NARRATIVE":
+            yoe_str = f"{yoe:.0f}yr" if yoe else "Experienced"
+            intro_variants = [
+                f"A {yoe_str} {arch} for the founding-team AI role",
+                f"{arch} with {yoe_str} of relevant experience for this founding-team role",
+                f"{arch}: {yoe_str}, product-company trajectory, strong for this founding-team AI role",
+                f"{arch} profile with {yoe_str} background suited to the Senior AI Engineer mandate",
+            ]
+            intro = intro_variants[(hash(str(cid)) + 61) % len(intro_variants)]
+            narratives_list[i] = f"[{display_tier}] {intro}. {strength_text} {concern_text}{jd_text}. {rank_why}. {action_text}."
+        else:  # CONCISE — multiple variants for low-rank brevity
+            short_sigs = ", ".join(pos_trimmed[:2]) if pos_trimmed else "JD-relevant experience"
+            short_c = concerns[0] if concerns else "Fit evaluation needed"
+            concise_variant = (rank + hash(str(cid))) % 3
+            if concise_variant == 0:
+                narratives_list[i] = f"[{display_tier}] {arch_sep}{arch}. Key: {short_sigs}. Watch: {short_c}. Ranked #{rank} of {pool_stats['total']:,}. {action_text}."
+            elif concise_variant == 1:
+                narratives_list[i] = f"[{display_tier}] {arch_sep}{arch}. {short_sigs}. {short_c}. #{rank}/{pool_stats['total']:,}. {action_text}."
             else:
-                risks_text = f"Risks to note include " + ", ".join(all_risks[:-1]) + f", and {all_risks[-1]}."
-            risks_summary = ", ".join(all_risks)
-        else:
-            risks_text = "No significant work history or data quality risks were detected."
-            risks_summary = "None detected"
-            
-        narrative_risks_list.append(risks_summary)
-        risk_sources_list.append(", ".join(risk_src) if risk_src else "None")
-        
-        # 5. Behavioral Interpretation
-        avg_time = row.get('avg_response_time_hours', 0.0)
-        interview_rate = row.get('interview_completion_rate', 0.0)
-        github = row.get('github_activity_score', -1.0)
-        
-        behavior_clauses = []
-        if resp_rate >= 0.85:
-            behavior_clauses.append(f"highly responsive (response rate of {resp_rate:.0%})")
-        elif resp_rate >= 0.5:
-            behavior_clauses.append(f"moderately responsive (response rate of {resp_rate:.0%})")
-        else:
-            behavior_clauses.append(f"less active or responsive (response rate of {resp_rate:.0%})")
-            
-        if interview_rate >= 0.8:
-            behavior_clauses.append("exhibits excellent interview reliability")
-        elif interview_rate > 0.0:
-            behavior_clauses.append(f"has an interview completion rate of {interview_rate:.0%}")
-            
-        if github >= 0.7:
-            behavior_clauses.append("demonstrates high coding output on GitHub")
-            
-        behavioral_text = f"On the platform, they are " + ", ".join(behavior_clauses[:-1]) + f", and {behavior_clauses[-1]}." if len(behavior_clauses) >= 2 else f"On the platform, they are {behavior_clauses[0]}."
-        narrative_behavioral_list.append(behavioral_text)
-        
-        # 6. Recruitability Interpretation (store for narrative_recruitability_list)
-        relocate = row.get('willing_to_relocate', False)
-        relocate_text = "is open to relocation" if relocate else "prefers local placement"
-        sal_min = row.get('expected_salary_min', 0.0)
-        sal_max = row.get('expected_salary_max', 0.0)
-        
-        salary_clause = ""
-        if sal_min > 0.0:
-            salary_clause = f" with expectations around {sal_min:.0f}-{sal_max:.0f} LPA"
-            
-        # Simple version for the recruitability column
-        recruit_text_simple = f"Notice period is {notice} days, they {relocate_text}{salary_clause}."
-        narrative_recruitability_list.append(recruit_text_simple)
-        
-        # 7. Redesigned Narrative with template variation for diversity
-        # Section A: Why this candidate & Archetype context
-        thesis_tpl = _select_template(THESIS_TEMPLATES, row.get('candidate_id', ''))
-        thesis = thesis_tpl.format(arch=arch, tier_short=tier_short, strengths_text=strengths_text)
-        
-        # Section B: What makes them different & Behavioral context
-        behavior = behavioral_text.replace('On the platform, they are ', '')
-        diff_tpl = _select_template(DIFF_TEMPLATES, row.get('candidate_id', ''))
-        diff = diff_tpl.format(behavior=behavior)
-        
-        # Section C: What to verify
-        verification_items = []
-        if high_risks:
-            verification_items.append("verify data discrepancies (" + ", ".join(high_risks) + ")")
-        if notice > 60:
-            verification_items.append(f"address notice period of {notice} days")
-        if sal_min > 40.0:
-            verification_items.append(f"confirm budget alignment for {sal_min:.0f} LPA expectations")
-            
-        if verification_items:
-            items_str = " and ".join(verification_items)
-            verify_tpl = _select_template(VERIFY_TEMPLATES_WITH_RISKS, row.get('candidate_id', ''))
-            verify_clause = verify_tpl.format(items=items_str)
-        else:
-            verify_tpl = _select_template(VERIFY_TEMPLATES_NO_RISKS, row.get('candidate_id', ''))
-            verify_clause = verify_tpl
-            
-        # Section D: Next Steps / Recruiter Action Guidance
-        next_step_tpl = _select_template(NEXT_STEP_TEMPLATES, row.get('candidate_id', ''))
-        next_step = next_step_tpl.format(act=act)
-        
-        # Recruitability text with variation
-        recruit_tpl = _select_template(RECRUIT_TEMPLATES, row.get('candidate_id', ''))
-        relocate_text = "is open to relocation" if relocate else "prefers local placement"
-        relocate_text_subj = "are open to relocation" if relocate else "prefer local placement"
-        relocate_text_title = relocate_text.capitalize()
-        salary_clause = f" with expectations around {sal_min:.0f}-{sal_max:.0f} LPA" if sal_min > 0.0 else ""
-        recruit_text = recruit_tpl.format(notice=notice, relocate_text=relocate_text, relocate_text_subj=relocate_text_subj, relocate_text_title=relocate_text_title, salary_clause=salary_clause)
-        
-        # Ensure proper spacing - avoid double periods
-        comp_narrative = f"{thesis} {diff} {recruit_text} {verify_clause} {next_step}"
-        comp_narrative = comp_narrative.replace('.. ', '. ').replace('..', '.')
-        narratives.append(comp_narrative)
-        
+                action_short = action_text.split(":")[-1].strip() if ":" in action_text else action_text
+                narratives_list[i] = f"[{display_tier}] {arch_sep}{arch}. {action_short}. {short_sigs}. Watch: {short_c}. #{rank} of {pool_stats['total']:,}."
+
+        narrative_strengths_list[i] = "; ".join(pos) if pos else "No specific signals detected"
+        narrative_risks_list[i] = "; ".join(neg_signals_list[i]) if neg_signals_list[i] else "None detected"
+        resp_rate = float(row.get('recruiter_response_rate', 0.0))
+        interview_rate = float(row.get('interview_completion_rate', 0.0))
+        behavior_parts = []
+        if resp_rate >= 0.5:
+            behavior_parts.append(f"response rate {resp_rate:.0%}")
+        if interview_rate > 0:
+            behavior_parts.append(f"interview completion {interview_rate:.0%}")
+        narrative_behavioral_list[i] = "; ".join(behavior_parts) if behavior_parts else "Limited behavioral data"
+        notice_val = int(row.get('notice_period_days', 0))
+        relocate = bool(row.get('willing_to_relocate', False))
+        sal_min = float(row.get('expected_salary_min', 0.0))
+        sal_max = float(row.get('expected_salary_max', 0.0))
+        recruit_parts = [f"{notice_val}-day notice"]
+        recruit_parts.append("willing to relocate" if relocate else "not open to relocation")
+        if sal_min > 0:
+            recruit_parts.append(f"{sal_min:.0f}-{sal_max:.0f} LPA expected")
+        narrative_recruitability_list[i] = "; ".join(recruit_parts)
+        strength_sources_list[i] = ", ".join(pos) if pos else "None"
+        risk_sources_list[i] = ", ".join(neg_signals_list[i]) if neg_signals_list[i] else "None"
+
+    out_df['display_tier'] = display_tiers
     out_df['archetype'] = archetypes
     out_df['action_recommendation'] = actions
+    out_df['positive_signals'] = pos_signals_list
+    out_df['concerns'] = neg_signals_list
+    out_df['jd_markers'] = jd_markers_list
+    out_df['jd_sentence'] = jd_texts_list
+    out_df['narrative'] = narratives_list
+
     out_df['narrative_strengths'] = narrative_strengths_list
     out_df['narrative_risks'] = narrative_risks_list
     out_df['narrative_behavioral'] = narrative_behavioral_list
     out_df['narrative_recruitability'] = narrative_recruitability_list
     out_df['strength_sources'] = strength_sources_list
     out_df['risk_sources'] = risk_sources_list
-    out_df['narrative'] = narratives
-    
-    return out_df
 
+    return out_df
