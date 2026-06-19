@@ -468,6 +468,211 @@ def get_additional_concerns(row):
     return extras
 
 
+
+# ── JD-Aware Assessment ─────────────────────────────────────────────
+def get_jd_assessment_markers(row):
+    markers = []
+    yoe = row.get('years_of_experience', 0.0)
+
+    if yoe >= 5 and not row.get('disq_pure_research', False):
+        markers.append("production_depth")
+    elif yoe >= 3:
+        markers.append("moderate_experience")
+    else:
+        markers.append("limited_experience")
+
+    if not row.get('disq_pure_research', False) and (row.get('match_vector_db', False) or row.get('match_embeddings', False)):
+        markers.append("shipper_profile")
+    elif not row.get('disq_pure_research', False):
+        markers.append("mixed_production_research")
+    else:
+        markers.append("research_heavy")
+
+    if row.get('score_startup_fit', 0.0) >= 0.8:
+        markers.append("startup_ready")
+
+    if row.get('disq_only_consulting', False):
+        markers.append("consulting_concern")
+    if row.get('disq_title_chaser', False):
+        markers.append("tenure_concern")
+
+    loc = str(row.get('location', '')).lower()
+    if any(city in loc for city in ['pune', 'noida', 'delhi', 'gurgaon', 'gurugram', 'mumbai', 'hyderabad', 'bangalore', 'bengaluru', 'chennai']):
+        markers.append("india_tech_hub")
+    if any(city in loc for city in ['pune', 'noida']):
+        markers.append("preferred_location")
+
+    notice = row.get('notice_period_days', 0)
+    if notice <= 30:
+        markers.append("short_notice")
+    elif notice > 60:
+        markers.append("long_notice")
+
+    if row.get('match_hr_tech', False):
+        markers.append("hr_tech_exposure")
+
+    return markers
+
+# ── NEW: Multiple JD sentence structures ────────────────────────────
+_JD_SENTENCE_VARIANTS = [
+    # 0: Standard production + founding
+    "production_founding",
+    # 1: Ship-first framing
+    "ship_first",
+    # 2: Production only
+    "production_only",
+    # 3: Founding only
+    "founding_only",
+    # 4: Tenure/short notice
+    "tenure_notice",
+    # 5: Location focused
+    "location_focused",
+    # 6: Research concern
+    "research_concern",
+    # 7: General alignment
+    "general_alignment",
+]
+
+def _format_jd_text(markers, row, variant_idx):
+    parts = []
+    yoe = row.get('years_of_experience', 0.0)
+    cid = row.get('candidate_id', '')
+
+    if variant_idx == 0:
+        # Production + founding (now varied with candidate details)
+        if "production_depth" in markers and "shipper_profile" in markers:
+            prod_pick = _pick_phrase(_JD_PRODUCTION_PHRASES, cid, 0)
+            # Occasionally append YOE context
+            if (hash(str(cid)) + 47) % 5 == 0:
+                if "short_notice" in markers:
+                    prod_pick += f" — {row.get('notice_period_days', 0)}-day notice supports quick start"
+                elif "india_tech_hub" in markers:
+                    loc = row.get('location', '')
+                    prod_pick += f" — based in {loc}, aligning with regional scope"
+            parts.append(prod_pick)
+        if "startup_ready" in markers:
+            parts.append(_pick_phrase(_JD_FOUNDING_PHRASES, cid, 7))
+        if not parts:
+            if "limited_experience" in markers:
+                parts.append(f"Experience level ({yoe:.0f} years) is below the JD's preferred 5-9 year range but other signals may compensate")
+            else:
+                notice = row.get('notice_period_days', 0)
+                if notice and notice <= 30:
+                    parts.append(f"Quick availability ({notice}-day notice) and experience profile show partial JD alignment")
+                else:
+                    parts.append("Profile has some alignment with JD requirements")
+
+    elif variant_idx == 1:
+        # Ship-first framing
+        if "shipper_profile" in markers:
+            parts.append("The JD explicitly prioritizes engineers who ship over researchers — this candidate's deployment track record fits that mold")
+        elif "research_heavy" in markers:
+            parts.append("JD explicitly prioritizes production deployment over research-only paths — candidate's research-heavy background is a noted tension")
+        if "startup_ready" in markers:
+            parts.append(_pick_phrase(_JD_FOUNDING_PHRASES, cid, 1))
+        if not parts:
+            parts.append("Industry experience matches the JD's 5-9 year target range for senior engineers")
+
+    elif variant_idx == 2:
+        # Production only
+        if "production_depth" in markers:
+            if "shipper_profile" in markers:
+                parts.append(_pick_phrase(_JD_PRODUCTION_PHRASES, cid, 5))
+            else:
+                parts.append("Industry experience matches the JD's 5-9 year target range for senior engineers")
+        elif "limited_experience" in markers:
+            parts.append(f"Experience level ({yoe:.0f} years) is below the JD's preferred 5-9 year range")
+        if "short_notice" in markers:
+            notice = row.get('notice_period_days', 0)
+            parts.append(f"Short notice period ({notice} days) fits the JD's preference for quick availability")
+        if "startup_ready" in markers:
+            parts.append(_pick_phrase(_JD_FOUNDING_PHRASES, cid, 2))
+
+    elif variant_idx == 3:
+        # Founding focused
+        if "startup_ready" in markers:
+            parts.append(_pick_phrase(_JD_FOUNDING_PHRASES, cid, 3))
+        if "consulting_concern" in markers:
+            parts.append("JD flags consulting-only backgrounds as a potential concern for founding-team roles")
+        if "tenure_concern" in markers:
+            parts.append("JD seeks founding-team stability — short tenure pattern may be a concern")
+        if not parts and "production_depth" in markers:
+            parts.append(_pick_phrase(_JD_PRODUCTION_PHRASES, cid, 1))
+
+    elif variant_idx == 4:
+        # Tenure/notice focused
+        if "long_notice" in markers:
+            parts.append(f"{row.get('notice_period_days', 0)}-day notice period exceeds the JD's implied quick-start preference")
+        elif "short_notice" in markers:
+            parts.append(f"Short notice ({row.get('notice_period_days', 0)} days) aligns with the JD's desire for quick availability")
+        if "tenure_concern" in markers:
+            parts.append("JD values founding-team stability — candidate's <18-month average tenure is a flagged concern")
+        if "production_depth" in markers and "shipper_profile" in markers:
+            parts.append(_pick_phrase(_JD_PRODUCTION_PHRASES, cid, 4))
+        if not parts and "startup_ready" in markers:
+            parts.append(_pick_phrase(_JD_FOUNDING_PHRASES, cid, 5))
+
+    elif variant_idx == 5:
+        # Location focused
+        if "preferred_location" in markers:
+            parts.append("Located in Pune/Noida — zero relocation friction for the JD's preferred locations")
+        elif "india_tech_hub" in markers:
+            parts.append("Based in an Indian tech hub — aligns with the JD's geographic scope")
+        if "shipper_profile" in markers:
+            parts.append(_pick_phrase(_JD_PRODUCTION_PHRASES, cid, 2))
+        if "startup_ready" in markers:
+            parts.append(_pick_phrase(_JD_FOUNDING_PHRASES, cid, 6))
+        if not parts:
+            parts.append("Experience profile broadly aligns with JD requirements")
+
+    elif variant_idx == 6:
+        # Research concern focus
+        if "research_heavy" in markers:
+            parts.append("JD explicitly prioritizes production deployment over research — this candidate has a research-heavy profile that may not align")
+        elif "mixed_production_research" in markers:
+            parts.append("Candidate has both research and production signals — JD prefers shipper profile but flexibility may apply")
+        if "startup_ready" in markers:
+            parts.append(_pick_phrase(_JD_FOUNDING_PHRASES, cid, 4))
+        if not parts and "short_notice" in markers:
+            parts.append(f"Quick availability ({row.get('notice_period_days', 0)}-day notice) — aligns with JD's speed preference")
+
+    else:
+        # General alignment (variant 7) — inject candidate-specific details
+        yoe_variants = [
+            f"Profile depth ({yoe:.0f} years) aligns with the JD's 5-9 year senior engineer target range",
+            f"At {yoe:.0f} years of experience, this candidate falls within the JD's senior engineer range",
+        ]
+        loc_variants = [
+            "Pune/Noida location matches JD preference — no relocation needed",
+            "Preferred geography (Pune/Noida) — no relocation cost or timeline risk",
+        ]
+        hub_variants = [
+            "Indian tech hub location fits the JD's geographic scope",
+            "Based in a major Indian tech hub — aligns with JD's location preferences",
+        ]
+        if "production_depth" in markers:
+            parts.append(yoe_variants[(hash(str(cid)) + 37) % len(yoe_variants)])
+        if "preferred_location" in markers:
+            parts.append(loc_variants[(hash(str(cid)) + 41) % len(loc_variants)])
+        elif "india_tech_hub" in markers:
+            parts.append(hub_variants[(hash(str(cid)) + 43) % len(hub_variants)])
+        if "startup_ready" in markers:
+            parts.append(_pick_phrase(_JD_FOUNDING_PHRASES, cid, 0))
+        if not parts:
+            notice = row.get('notice_period_days', 0)
+            if notice and notice <= 30:
+                parts.append(f"Short notice ({notice} days) reduces hiring timeline risk")
+            elif row.get('match_retrieval_ranking') or row.get('match_vector_db'):
+                parts.append("Retrieval/ranking experience directly maps to the JD's core technical requirements")
+            else:
+                parts.append("Candidate's experience has partial alignment with JD requirements — note specific gaps above")
+
+    if not parts:
+        parts.append("Profile has some alignment with JD requirements")
+    return " \u2014 " + "; ".join(parts)
+
+# ── Recruiter Action Text ──────────────────────────────────────────
+
 def generate_candidate_narratives(df):
     """Generates natural language candidate narratives and recruiter briefings.
     
