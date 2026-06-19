@@ -882,3 +882,144 @@ elif st.session_state.app_state == "OPERATING_SYSTEM":
                 for c in caveats:
                     st.markdown(f"- {c}")
 
+    # ----------------- PAGE 6: HIDDEN GEM COMMAND CENTER -----------------
+    with tabs[3]:
+        st.markdown("### 💎 HIDDEN GEM COMMAND CENTER")
+        
+        hg_df = st.session_state.df[st.session_state.df["is_hidden_gem"] == True]
+        
+        categories = [
+            ("Emerging Specialist", "Strong skill assessment scores but low overall keyword counts. Often missed by keyword-only database lookups."),
+            ("Growth Candidate", "Early-to-mid career profiles with high startup suitability and platform engagement marks, but modest absolute tenure."),
+            ("Startup Builder", "High startup fit and distributed systems experience, combined with relocation willingness and active code contributions."),
+            ("Underexposed Expert", "Very high skill match but low profile views/saves visibility. Missed by recruiter search appearance counts."),
+            ("High Intent Candidate", "Highly active and responsive coders ready to interview immediately, with quick notice periods.")
+        ]
+        
+        for cat_name, missed_reason in categories:
+            cat_df = hg_df[hg_df["hidden_gem_category"] == cat_name]
+            with st.expander(f"■ {cat_name.upper()} ({len(cat_df)} FOUND)"):
+                st.markdown(f"**WHY THEY WERE MISSED BY TRADITIONAL SEARCH:**\n> {missed_reason}")
+                
+                if cat_df.empty:
+                    st.markdown("*No candidates matched this potential profile category in the active pool.*")
+                else:
+                    for idx, r in cat_df.iterrows():
+                        st.markdown(f"**Candidate `{r['candidate_id']}` (Rank #{r['rank']} | Score: `{r['score']:.4f}`)**")
+                        st.markdown(f"- **Hidden Gem Score:** `{r['hidden_gem_score']:.1f}`")
+                        st.markdown(f"- **Outreach Action:** {r.get('hidden_gem_narrative', 'Contact to inspect adjacent capabilities.')}")
+                        st.markdown("---")
+
+    # ----------------- PAGE 7: RAP OPERATIONS CENTER -----------------
+    with tabs[4]:
+        st.markdown("### 📥 RAP OPERATIONS CENTER")
+        
+        priorities = [
+            ("Contact Immediately", "Candidates with high availability, high responsiveness, and strong qualification profiles. Target within 4 hours."),
+            ("Priority Outreach", "Strong candidates with active platform signals and standard notice periods. Target within 24 hours."),
+            ("Standard Outreach", "Qualified candidates with moderate engagement signals. Add to weekly message queues."),
+            ("Long-Term Nurture", "High quality matches currently constrained by long notice periods or salary boundaries. Keep active in nurture loops."),
+            ("Do Not Prioritize", "Candidates with minimal platform response records or data integrity violations.")
+        ]
+        
+        for prio_name, directive in priorities:
+            prio_df = st.session_state.df[st.session_state.df["rap_priority"] == prio_name]
+            with st.expander(f"■ {prio_name.upper()} ({len(prio_df)} IN QUEUE)"):
+                st.markdown(f"**TACTICAL OUTREACH DIRECTIVE:**\n> {directive}")
+                
+                if prio_df.empty:
+                    st.markdown("*No candidates in this outreach queue.*")
+                else:
+                    for idx, r in prio_df.iterrows():
+                        st.markdown(f"**Candidate `{r['candidate_id']}` (Rank #{r['rank']} | Score: `{r['score']:.4f}`)**")
+                        st.markdown(f"- **RAP Score:** `{r['rap_score']:.1f}`")
+                        st.markdown(f"- **Action Directive:** {r.get('rap_action', '')}")
+                        st.markdown(f"- **Rationale:** {r.get('rap_rationale', '')}")
+                        st.markdown("---")
+
+    # ----------------- PAGE 8: EXPORT CENTER -----------------
+    with tabs[5]:
+        st.markdown("### 📦 EXPORT CENTER")
+        
+        # Real-time compliance check on top 100
+        df_top100 = st.session_state.df.head(100).copy()
+        
+        is_monotonic = df_top100["score"].is_monotonic_decreasing
+        monotonicity_status = "PASS" if is_monotonic else "FAIL (Scores must be sorted descending)"
+        
+        # Tie break verification
+        tie_break_status = "PASS"
+        ties = df_top100[df_top100.duplicated(subset=["score"], keep=False)]
+        if not ties.empty:
+            for score_val, group in ties.groupby("score"):
+                if not group["candidate_id"].is_monotonic_increasing:
+                    tie_break_status = "FAIL (Ties must be sorted by Candidate ID ascending)"
+                    break
+                    
+        # Reasoning validation
+        has_reasoning = df_top100["narrative"].notna().all() and (df_top100["narrative"].str.strip() != "").all()
+        reasoning_status = "PASS" if has_reasoning else "FAIL (Missing recruiter narrative reasoning)"
+        
+        overall_valid = (monotonicity_status == "PASS") and (tie_break_status == "PASS") and (reasoning_status == "PASS")
+        overall_status = "PASS" if overall_valid else "FAIL"
+        
+        with st.container(border=True):
+            st.markdown("#### ■ SUBMISSION VALIDATION LOGS")
+            st.markdown(render_monochrome_row("Overall Ingestion Status", overall_status), unsafe_allow_html=True)
+            st.markdown(render_monochrome_row("Ingested Pool Size", f"{st.session_state.candidate_count} candidates"), unsafe_allow_html=True)
+            st.markdown(render_monochrome_row("Top-100 Slice Count", f"{len(df_top100)} / 100"), unsafe_allow_html=True)
+            st.markdown(render_monochrome_row("Score Monotonicity", monotonicity_status), unsafe_allow_html=True)
+            st.markdown(render_monochrome_row("Tie-Break Sort Compliance", tie_break_status), unsafe_allow_html=True)
+            st.markdown(render_monochrome_row("Reasoning Text Compliance", reasoning_status), unsafe_allow_html=True)
+            st.markdown(render_monochrome_row("CSV Structure Protocol", "READY"), unsafe_allow_html=True)
+            
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Generate CSV formats
+        # 1. submission.csv
+        submission_df = df_top100[["candidate_id", "rank", "score", "narrative"]].copy()
+        submission_df = submission_df.rename(columns={"score": "score", "narrative": "reasoning"})
+        submission_csv = submission_df.to_csv(index=False).encode('utf-8')
+        
+        # 2. top100_report.csv
+        report_df = df_top100.copy()
+        report_csv = report_df.to_csv(index=False).encode('utf-8')
+        
+        # 3. hidden_gems.csv
+        h_gems_df = st.session_state.df[st.session_state.df["is_hidden_gem"] == True].copy()
+        gems_csv = h_gems_df.to_csv(index=False).encode('utf-8')
+        
+        # Downloads grid
+        dl_col1, dl_col2, dl_col3 = st.columns(3)
+        
+        with dl_col1:
+            st.download_button(
+                "DOWNLOAD SUBMISSION CSV",
+                data=submission_csv,
+                file_name="submission.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        with dl_col2:
+            st.download_button(
+                "DOWNLOAD TOP 100 REPORT",
+                data=report_csv,
+                file_name="top100_report.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        with dl_col3:
+            st.download_button(
+                "DOWNLOAD HIDDEN GEMS INDEX",
+                data=gems_csv,
+                file_name="hidden_gems.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+            
+        st.markdown("<br>", unsafe_allow_html=True)
+        # Reset button
+        if st.button("RESET TO MISSION CONTROL", type="secondary", use_container_width=True):
+            st.session_state.app_state = "MISSION_CONTROL"
+            st.session_state.uploaded_file_data = None
+            st.rerun()
