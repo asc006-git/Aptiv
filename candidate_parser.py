@@ -4,6 +4,10 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 
+# Pre-compiled regex patterns
+_ACRONYM_PATTERNS = {acro: re.compile(r'\b' + re.escape(acro) + r'\b') for acro in ('ndcg', 'mrr', 'map', 'ltr', 'nlp', 'ir')}
+_CONSULTING_CLEAN_RE = re.compile(r'\b(limited|ltd|solutions|services|pvt|corp|corporation|inc)\b')
+
 # Curated JD Skill Keywords
 SKILL_KEYWORDS = {
     'vector_db': [
@@ -40,7 +44,7 @@ SKILL_KEYWORDS = {
     ]
 }
 
-# Acronyms where word boundaries are critical to avoid false positives (e.g. 'map' in 'mapping')
+# Acronyms where word boundaries are critical to avoid false positives
 ACRONYMS = {'ndcg', 'mrr', 'map', 'ltr', 'nlp', 'ir'}
 
 # Heuristic lists for Disqualifier checks
@@ -66,7 +70,7 @@ def search_keywords(text_lower, keywords):
     """Helper function to look up pre-defined keywords with boundary checks for acronyms."""
     for kw in keywords:
         if kw in ACRONYMS:
-            if re.search(r'\b' + re.escape(kw) + r'\b', text_lower):
+            if _ACRONYM_PATTERNS[kw].search(text_lower):
                 return True
         else:
             if kw in text_lower:
@@ -113,6 +117,7 @@ class CandidateParser:
             if has_match:
                 total_matches += 1
         features['total_jd_skill_matches'] = total_matches
+        features['skills_listed'] = " ".join(s.get('name', '') for s in skills)[:200]
         
         # Disqualifiers
         # 1. Consulting only
@@ -235,12 +240,13 @@ class CandidateParser:
     def _check_only_consulting(self, history):
         if not history:
             return False
+        consulting_set = CONSULTING_COMPANIES
+        clean_re = _CONSULTING_CLEAN_RE
         for job in history:
             company_lower = job.get('company', '').strip().lower()
-            cleaned_company = re.sub(r'\b(limited|ltd|solutions|services|pvt|corp|corporation|inc)\b', '', company_lower).strip()
-            
+            cleaned_company = clean_re.sub('', company_lower).strip()
             is_consulting = False
-            for c in CONSULTING_COMPANIES:
+            for c in consulting_set:
                 if c in company_lower or company_lower in c or c in cleaned_company:
                     is_consulting = True
                     break
