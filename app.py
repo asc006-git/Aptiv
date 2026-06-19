@@ -656,3 +656,229 @@ elif st.session_state.app_state == "OPERATING_SYSTEM":
             
             st.dataframe(display_df, use_container_width=True, hide_index=True)
             
+    # ----------------- PAGE 4: CANDIDATE INTELLIGENCE PANEL -----------------
+    with tabs[1]:
+        st.markdown("### 📊 CANDIDATE INTELLIGENCE PANEL")
+        
+        # Selected candidate fetch
+        active_id = st.session_state.selected_candidate_id
+        if not active_id or active_id not in st.session_state.df["candidate_id"].values:
+            active_id = st.session_state.df.iloc[0]["candidate_id"]
+            st.session_state.selected_candidate_id = active_id
+            
+        cand = st.session_state.df[st.session_state.df["candidate_id"] == active_id].iloc[0]
+        
+        # Split pane details layout
+        col_c1, col_c2 = st.columns([1, 1], gap="medium")
+        
+        with col_c1:
+            # 1. Identity section
+            with st.container(border=True):
+                st.markdown("#### ■ CANDIDATE IDENTITY")
+                st.markdown(render_monochrome_row("Candidate ID", cand["candidate_id"]), unsafe_allow_html=True)
+                st.markdown(render_monochrome_row("System Rank", f"#{cand['rank']:03d}"), unsafe_allow_html=True)
+                st.markdown(render_monochrome_row("Total Score", f"{cand['score']:.4f}"), unsafe_allow_html=True)
+                st.markdown(render_monochrome_row("Match Tier", cand["display_tier"].upper()), unsafe_allow_html=True)
+                st.markdown(render_monochrome_row("Location", f"{cand.get('location', 'N/A')}, {cand.get('country', 'IN')}"), unsafe_allow_html=True)
+                st.markdown(render_monochrome_row("Years of Experience", f"{cand.get('years_of_experience', 0.0):.1f} Years"), unsafe_allow_html=True)
+                st.markdown(render_monochrome_row("Current Title", cand.get("current_title", "N/A")), unsafe_allow_html=True)
+                st.markdown(render_monochrome_row("Current Company", cand.get("current_company", "N/A")), unsafe_allow_html=True)
+                
+            # 2. Recruiter Action Plan (RAP)
+            with st.container(border=True):
+                st.markdown("#### ■ RECRUITER ACTION PLAN")
+                st.markdown(render_monochrome_row("RAP score", f"{cand.get('rap_score', 0.0):.1f}"), unsafe_allow_html=True)
+                st.markdown(render_monochrome_row("Outreach Priority", str(cand.get("rap_priority", "")).upper()), unsafe_allow_html=True)
+                st.markdown(f"**TACTICAL DIRECTIVE:**\n> {cand.get('rap_action', 'None')}")
+                st.markdown(f"**TACTICAL RATIONALE:**\n> {cand.get('rap_rationale', 'None')}")
+                
+            # 3. Hidden Gem Analysis
+            is_gem_active = "YES" if cand.get("is_hidden_gem", False) else "NO"
+            with st.container(border=True):
+                st.markdown("#### ■ HIDDEN GEM ANALYSIS")
+                st.markdown(render_monochrome_row("Hidden Gem Score", f"{cand.get('hidden_gem_score', 0.0):.1f}"), unsafe_allow_html=True)
+                st.markdown(render_monochrome_row("Is Hidden Gem?", is_gem_active), unsafe_allow_html=True)
+                st.markdown(render_monochrome_row("Gem Category", str(cand.get("hidden_gem_category", "None")).upper()), unsafe_allow_html=True)
+                st.markdown(f"**RECRUITER BREIFING:**\n> {cand.get('hidden_gem_narrative', 'No potential briefing generated.')}")
+                
+        with col_c2:
+            # 4. Narrative Intelligence
+            with st.container(border=True):
+                st.markdown("#### ■ NARRATIVE INTELLIGENCE")
+                st.markdown(f"**RECRUITER BRIEFING ARCHETYPE: {cand.get('archetype', 'Standard').upper()}**")
+                st.markdown(f"> {cand.get('narrative', 'No narrative briefing generated.')}")
+                
+            # 5. Score Explainability Progress Indicators
+            with st.container(border=True):
+                st.markdown("#### ■ SCORE EXPLAINABILITY")
+                render_score_bar("1. Core Skill Matching", cand.get("score_skill_match", 0.0) * 0.40, 0.40)
+                render_score_bar("2. Production Experience", cand.get("score_production_experience", 0.0) * 0.25, 0.25)
+                render_score_bar("3. Retrieval & Ranking Depth", cand.get("score_retrieval_ranking", 0.0) * 0.15, 0.15)
+                render_score_bar("4. Platform Engagement Signals", cand.get("score_behavioral", 0.0) * 0.10, 0.10)
+                render_score_bar("5. Early-Stage Startup Fit", cand.get("score_startup_fit", 0.0) * 0.10, 0.10)
+                render_score_bar("6. Risk Penalty (Deducted)", cand.get("penalty_risk", 0.0), 1.0, is_penalty=True)
+                
+            # 6. Experience & Disqualifiers
+            with st.container(border=True):
+                st.markdown("#### ■ EXPERIENCE SUMMARIZATION")
+                st.markdown(render_monochrome_row("Consulting-only background", "YES" if cand.get("disq_only_consulting", False) else "NO"), unsafe_allow_html=True)
+                st.markdown(render_monochrome_row("Research-heavy background", "YES" if cand.get("disq_pure_research", False) else "NO"), unsafe_allow_html=True)
+                st.markdown(render_monochrome_row("Tenure chaser pattern", "YES" if cand.get("disq_title_chaser", False) else "NO"), unsafe_allow_html=True)
+                st.markdown(render_monochrome_row("Active coding gap", "YES" if cand.get("disq_inactive_coder", False) else "NO"), unsafe_allow_html=True)
+                
+            # 7. Key Skills
+            with st.container(border=True):
+                st.markdown("#### ■ KEY SKILLS")
+                raw_skills = cand.get("skills_listed", "")
+                if isinstance(raw_skills, list):
+                    raw_skills = ", ".join(raw_skills)
+                st.markdown(f"`{raw_skills or 'None listed'}`")
+                
+            # 8. Strength Protocol Bullets (Clean monochrome text lists, NO raw HTML!)
+            with st.container(border=True):
+                st.markdown("#### ■ STRENGTH PROTOCOL")
+                pos_signals = cand.get("positive_signals", [])
+                if isinstance(pos_signals, str):
+                    pos_signals = [pos_signals]
+                if pos_signals:
+                    for s in pos_signals:
+                        st.markdown(f"- {s}")
+                else:
+                    st.markdown("- No positive signals recorded.")
+                    
+            # 9. Risk Protocol Bullets (Clean monochrome text lists, NO raw HTML!)
+            with st.container(border=True):
+                st.markdown("#### ■ RISK PROTOCOL")
+                neg_signals = cand.get("concerns", [])
+                if isinstance(neg_signals, str):
+                    neg_signals = [neg_signals]
+                if neg_signals:
+                    for c in neg_signals:
+                        st.markdown(f"- {c}")
+                else:
+                    st.markdown("- No integrity risks or watchpoints detected.")
+
+    # ----------------- PAGE 5: EXPLAINABILITY LAB -----------------
+    with tabs[2]:
+        st.markdown("### 🔬 EXPLAINABILITY LAB")
+        
+        # Target candidate A selection
+        cand_a = cand
+        st.markdown(f"#### EXPLAINING RANKING FOR CANDIDATE `{cand_a['candidate_id']}` (RANK #{cand_a['rank']})")
+        
+        col_ex1, col_ex2 = st.columns([1, 1])
+        with col_ex1:
+            with st.container(border=True):
+                st.markdown("##### SCORE DECOMPOSITION")
+                render_score_bar("Skill Match Contribution (Max: 0.40)", cand_a.get("score_skill_match", 0.0) * 0.40, 0.40)
+                render_score_bar("Production Experience Contribution (Max: 0.25)", cand_a.get("score_production_experience", 0.0) * 0.25, 0.25)
+                render_score_bar("Retrieval depth Contribution (Max: 0.15)", cand_a.get("score_retrieval_ranking", 0.0) * 0.15, 0.15)
+                render_score_bar("Behavioral Contribution (Max: 0.10)", cand_a.get("score_behavioral", 0.0) * 0.10, 0.10)
+                render_score_bar("Startup Fit Contribution (Max: 0.10)", cand_a.get("score_startup_fit", 0.0) * 0.10, 0.10)
+                render_score_bar("Risk Penalty (Deducted)", cand_a.get("penalty_risk", 0.0), 1.0, is_penalty=True)
+                st.markdown(f"**FINAL RELEVANCE SCORE:** `{cand_a['score']:.4f} / 1.0000`")
+                
+        with col_ex2:
+            with st.container(border=True):
+                st.markdown("##### COMPARISON PROTOCOL")
+                
+                # Fetch Candidate B target selector
+                cand_b_pool = st.session_state.df[st.session_state.df["candidate_id"] != cand_a["candidate_id"]]
+                
+                # Default Candidate B to ranked immediately below Candidate A
+                next_rank = cand_a["rank"] + 1
+                default_b_id = None
+                if not st.session_state.df[st.session_state.df["rank"] == next_rank].empty:
+                    default_b_id = st.session_state.df[st.session_state.df["rank"] == next_rank].iloc[0]["candidate_id"]
+                else:
+                    default_b_id = cand_b_pool.iloc[0]["candidate_id"]
+                    
+                comp_id = st.selectbox(
+                    "COMPARE WITH (CANDIDATE B)",
+                    options=cand_b_pool["candidate_id"].tolist(),
+                    index=cand_b_pool["candidate_id"].tolist().index(default_b_id) if default_b_id in cand_b_pool["candidate_id"].tolist() else 0,
+                    key="comp_selector"
+                )
+                
+                cand_b = st.session_state.df[st.session_state.df["candidate_id"] == comp_id].iloc[0]
+                
+                # Side-by-side comparison table
+                comp_data = {
+                    "Component Weight": [
+                        "1. Skill Match (40%)", "2. Production Exp (25%)", 
+                        "3. Retrieval/Ranking (15%)", "4. Behavioral (10%)", 
+                        "5. Startup Fit (10%)", "6. Risk Penalty (Deduction)", 
+                        "Final Score"
+                    ],
+                    f"Candidate A ({cand_a['candidate_id']})": [
+                        f"{cand_a.get('score_skill_match', 0.0)*0.40:.4f}",
+                        f"{cand_a.get('score_production_experience', 0.0)*0.25:.4f}",
+                        f"{cand_a.get('score_retrieval_ranking', 0.0)*0.15:.4f}",
+                        f"{cand_a.get('score_behavioral', 0.0)*0.10:.4f}",
+                        f"{cand_a.get('score_startup_fit', 0.0)*0.10:.4f}",
+                        f"-{cand_a.get('penalty_risk', 0.0):.4f}",
+                        f"{cand_a['score']:.4f}"
+                    ],
+                    f"Candidate B ({cand_b['candidate_id']})": [
+                        f"{cand_b.get('score_skill_match', 0.0)*0.40:.4f}",
+                        f"{cand_b.get('score_production_experience', 0.0)*0.25:.4f}",
+                        f"{cand_b.get('score_retrieval_ranking', 0.0)*0.15:.4f}",
+                        f"{cand_b.get('score_behavioral', 0.0)*0.10:.4f}",
+                        f"{cand_b.get('score_startup_fit', 0.0)*0.10:.4f}",
+                        f"-{cand_b.get('penalty_risk', 0.0):.4f}",
+                        f"{cand_b['score']:.4f}"
+                    ]
+                }
+                st.table(pd.DataFrame(comp_data))
+                
+        # Comparison logic explanation
+        with st.container(border=True):
+            st.markdown(f"##### WHY CANDIDATE `{cand_a['candidate_id']}` RANKS ABOVE `{cand_b['candidate_id']}`")
+            
+            diff_skill = (cand_a.get("score_skill_match", 0.0) - cand_b.get("score_skill_match", 0.0)) * 0.40
+            diff_exp = (cand_a.get("score_production_experience", 0.0) - cand_b.get("score_production_experience", 0.0)) * 0.25
+            diff_ret = (cand_a.get("score_retrieval_ranking", 0.0) - cand_b.get("score_retrieval_ranking", 0.0)) * 0.15
+            diff_behav = (cand_a.get("score_behavioral", 0.0) - cand_b.get("score_behavioral", 0.0)) * 0.10
+            diff_startup = (cand_a.get("score_startup_fit", 0.0) - cand_b.get("score_startup_fit", 0.0)) * 0.10
+            diff_penalty = cand_b.get("penalty_risk", 0.0) - cand_a.get("penalty_risk", 0.0) # positive if B has more penalty
+            
+            reasons = []
+            if diff_skill > 0.001:
+                reasons.append(f"Core Skill Match advantage (+{diff_skill:.4f} score delta)")
+            if diff_exp > 0.001:
+                reasons.append(f"Longer/more relevant Production Experience (+{diff_exp:.4f} score delta)")
+            if diff_ret > 0.001:
+                reasons.append(f"Higher depth in Retrieval/Ranking capabilities (+{diff_ret:.4f} score delta)")
+            if diff_behav > 0.001:
+                reasons.append(f"Stronger platform behavioral engagement stats (+{diff_behav:.4f} score delta)")
+            if diff_startup > 0.001:
+                reasons.append(f"Closer alignment with early-stage startup profiles (+{diff_startup:.4f} score delta)")
+            if diff_penalty > 0.001:
+                reasons.append(f"Lower Risk Penalty impact (+{diff_penalty:.4f} score points saved)")
+                
+            # If B leads in any area, print as caveats
+            caveats = []
+            if diff_skill < -0.001:
+                caveats.append(f"Skill Match capabilities ({diff_skill:.4f} points)")
+            if diff_exp < -0.001:
+                caveats.append(f"Production Experience tenure ({diff_exp:.4f} points)")
+            if diff_ret < -0.001:
+                caveats.append(f"Retrieval/Ranking depth indicators ({diff_ret:.4f} points)")
+            if diff_behav < -0.001:
+                caveats.append(f"Platform behavioral responsiveness ({diff_behav:.4f} points)")
+            if diff_startup < -0.001:
+                caveats.append(f"Startup fit parameters ({diff_startup:.4f} points)")
+            if diff_penalty < -0.001:
+                caveats.append(f"Higher Risk Penalties ({diff_penalty:.4f} points deducted)")
+                
+            if reasons:
+                for r in reasons:
+                    st.markdown(f"- {r}")
+            else:
+                st.markdown("- Minor score variances across components.")
+                
+            if caveats:
+                st.markdown("**Note/Caveats:** Candidate B holds competitive advantages in:")
+                for c in caveats:
+                    st.markdown(f"- {c}")
+
