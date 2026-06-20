@@ -372,11 +372,13 @@ def parse_jsonl(file_path):
         c['flag_duplicate_identity'] = is_duplicate
         
         # Final Suspicious Profile categorization
+        # Note: flag_duplicate_identity excluded — it is a synthetic dataset
+        # generation artifact (name collisions from repeated sampling) retained
+        # for informational reporting only. See scorer.py compute_risk_penalty().
         c['is_suspicious_profile'] = (
             c['flag_chronology_error'] or 
             c['flag_salary_error'] or 
-            c['flag_trust_error'] or 
-            c['flag_duplicate_identity'] or
+            c['flag_trust_error'] or
             c['flag_honeypot_timeline_inflated'] or
             c['flag_honeypot_skill_inflated'] or
             c['flag_honeypot_title_mismatch']
