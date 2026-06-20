@@ -1,24 +1,26 @@
 <h1 align="center">APTIV</h1>
 
-<p align="center"><strong>AI-Powered Talent Intelligence Platform That Finds Who Keyword Filters Miss</strong></p>
+<p align="center">
+AI-Powered Talent Intelligence Platform
+</p>
 
 <p align="center">
-  <a href="https://aptiv-ranker.streamlit.app" target="_blank" rel="noopener noreferrer">
-    <img src="https://img.shields.io/badge/Visit_Aptiv_Sandbox-Launch_Platform-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" alt="Visit Aptiv" />
-  </a>
+<a href="https://aptiv-ranker.streamlit.app">
+<img src="https://img.shields.io/badge/VISIT_APTIV-SANDBOX-white?style=for-the-badge&logoColor=black"/>
+</a>
 </p>
 
 <p align="center">
 
-<img src="https://img.shields.io/badge/PYTHON-3.10+-000000?style=for-the-badge&logo=python&logoColor=white"/>
+<img src="https://img.shields.io/badge/PYTHON-3.10+-F5F5F5?style=for-the-badge&logo=python&logoColor=black"/>
 
-<img src="https://img.shields.io/badge/STREAMLIT-1.42-111111?style=for-the-badge&logo=streamlit&logoColor=white"/>
+<img src="https://img.shields.io/badge/PANDAS-2.3-F5F5F5?style=for-the-badge&logo=pandas&logoColor=black"/>
 
-<img src="https://img.shields.io/badge/PANDAS-2.3-1A1A1A?style=for-the-badge&logo=pandas&logoColor=white"/>
+<img src="https://img.shields.io/badge/NUMPY-2.1-F5F5F5?style=for-the-badge&logo=numpy&logoColor=black"/>
 
-<img src="https://img.shields.io/badge/NUMPY-2.1-222222?style=for-the-badge&logo=numpy&logoColor=white"/>
+<img src="https://img.shields.io/badge/STREAMLIT-1.42-F5F5F5?style=for-the-badge&logo=streamlit&logoColor=black"/>
 
-<img src="https://img.shields.io/badge/MIT-LICENSE-333333?style=for-the-badge"/>
+<img src="https://img.shields.io/badge/LICENSE-MIT-F5F5F5?style=for-the-badge&logoColor=black"/>
 
 </p>
 
