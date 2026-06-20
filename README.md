@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://aptiv-ranker.streamlit.app" target="_blank" rel="noopener noreferrer">
-    <strong>[ VISIT APTIV SANDBOX ]</strong>
+    <img src="https://img.shields.io/badge/Visit_Aptiv_Sandbox-Launch_Platform-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" alt="Visit Aptiv" />
   </a>
 </p>
 
@@ -13,9 +13,7 @@
   <img src="https://img.shields.io/badge/Streamlit-1.42-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" alt="Streamlit 1.42" />
   <img src="https://img.shields.io/badge/Pandas-2.3-150458?style=for-the-badge&logo=pandas&logoColor=white" alt="Pandas" />
   <img src="https://img.shields.io/badge/NumPy-2.1-013243?style=for-the-badge&logo=numpy&logoColor=white" alt="NumPy" />
-  <img src="https://img.shields.io/badge/License-MIT-4ba590?style=for-the-badge" alt="MIT License" />
-  <img src="https://img.shields.io/badge/Streamlit_Cloud-Live-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" alt="Streamlit Cloud" />
-  <img src="https://img.shields.io/badge/GitHub-Repository-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub" />
+  <img src="https://img.shields.io/badge/License-MIT-2ea043?style=for-the-badge" alt="MIT License" />
 </p>
 
 ---
@@ -258,12 +256,6 @@ graph TD
 | **Version Control** | Git + GitHub | <img src="https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white" alt="GitHub"/> | Standard collaborative development with full commit history. |
 
 </div>
-
----
-
-## Live Demo
-
-https://aptiv-ranker.streamlit.app
 
 ---
 
