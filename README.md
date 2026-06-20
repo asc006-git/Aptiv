@@ -9,11 +9,17 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" />
-  <img src="https://img.shields.io/badge/Streamlit-1.42-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" alt="Streamlit 1.42" />
-  <img src="https://img.shields.io/badge/Pandas-2.3-150458?style=for-the-badge&logo=pandas&logoColor=white" alt="Pandas" />
-  <img src="https://img.shields.io/badge/NumPy-2.1-013243?style=for-the-badge&logo=numpy&logoColor=white" alt="NumPy" />
-  <img src="https://img.shields.io/badge/License-MIT-2ea043?style=for-the-badge" alt="MIT License" />
+
+<img src="https://img.shields.io/badge/PYTHON-3.10+-000000?style=for-the-badge&logo=python&logoColor=white"/>
+
+<img src="https://img.shields.io/badge/STREAMLIT-1.42-111111?style=for-the-badge&logo=streamlit&logoColor=white"/>
+
+<img src="https://img.shields.io/badge/PANDAS-2.3-1A1A1A?style=for-the-badge&logo=pandas&logoColor=white"/>
+
+<img src="https://img.shields.io/badge/NUMPY-2.1-222222?style=for-the-badge&logo=numpy&logoColor=white"/>
+
+<img src="https://img.shields.io/badge/MIT-LICENSE-333333?style=for-the-badge"/>
+
 </p>
 
 ---
@@ -360,7 +366,7 @@ pip install -r requirements.txt
 
 ### Run the Sandbox Local Server
 ```bash
-streamlit run app.py
+python -m streamlit run app.py
 ```
 
 ### Generate Batch Results
