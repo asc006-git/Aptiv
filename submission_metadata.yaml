@@ -6,15 +6,15 @@ primary_contact:
   phone: "+91-7388117471"
 
 team_members:
-  - name: "NA"
-    email: "NA"
-    role: "NA"
+  - name: "Adhyatma Singh Chauhan"
+    email: "adhyatmasinghchauhan20031@gmail.com"
+    role: "Team Lead / ML Engineer (solo)"
 
 github_repo: "https://github.com/asc006-git/Aptiv"
 
-sandbox_link: "https://huggingface.co/spaces/aptiv/redrob-ranker"
+sandbox_link: "https://aptiv-ranker.streamlit.app"
 
-reproduce_command: "python generate_submission.py --input data/candidates.jsonl --output submission.csv"
+reproduce_command: "python generate_submission.py --input data/candidates.jsonl --output Adhyatma_Singh_Chauhan.csv"
 
 compute:
   platform: "Local Windows PC"
@@ -36,20 +36,19 @@ ai_usage_summary: |
   was fed to any LLM.
 
 methodology_summary: |
-  Multi-signal rule-based ranker with 5 weighted scoring components:
-  skill match (0.40), production experience (0.25), retrieval/ranking
-  experience (0.15), behavioral signals (0.10), startup fit (0.10).
-  Risk penalty subtracts for chronology/salary/trust errors and
-  honeypot inconsistencies. Hidden Gem detection identifies candidates
-  undervalued by keyword ranking. RAP prioritizes recruiter outreach.
-  Narrative generation uses 8 structurally distinct templates with
-  hash-varied signal phrasing, per-candidate rank explainability
-  with sub-score breakdown and pool percentile context, and
-  proportional depth (top ranks receive richer analysis). Every
-  narrative includes at least one genuine concern derived from
-  candidate behavioral signals. Honeypot protection via timeline
-  consistency, skill-duration mismatch, and title-keyword alignment
-  checks integrated into the risk penalty.
+  Rule-based ranker with 5 weighted scoring components (skill match 0.40,
+  production experience 0.25, retrieval/ranking 0.15, behavioral 0.10,
+  startup fit 0.10). Risk penalty subtracts for chronology/salary/trust
+  errors and honeypot inconsistencies. 60-feature streaming parser extracts
+  skills, disqualifiers, behavioral signals, and data quality flags from
+  100K JSONL profiles. Hidden Gem detection (6-component score, 5 categories)
+  identifies candidates undervalued by keyword ranking. RAP engine (4-component
+  score) prioritizes recruiter outreach by engagement velocity, availability,
+  conversion likelihood, and match baseline. Narrative generation uses 8
+  structurally distinct templates with hash-varied phrasing — each narrative
+  includes score breakdown, pool-relative explainability, JD alignment, and at
+  least one genuine concern. Every narrative is deterministic, auditable,
+  and derived purely from candidate data with zero LLM calls.
 
 declarations:
   read_submission_spec: true
