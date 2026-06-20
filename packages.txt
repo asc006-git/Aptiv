@@ -1,2 +1,0 @@
-# Aptiv Sandbox — System Dependencies for Streamlit Cloud
-# No system packages required beyond the Python packages in requirements.txt
