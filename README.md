@@ -1,217 +1,376 @@
 # Aptiv
 
-A multi-signal talent intelligence engine that ranks candidates using skills, experience, behavioral indicators, risk-aware scoring, hidden potential detection, recruiter action prioritization, and narrative intelligence.
-
----
-
-## Project Overview
-
-Aptiv is an intelligent candidate discovery and ranking system built for the Redrob Intelligent Candidate Discovery & Ranking Challenge. It processes 100,000 candidate profiles, extracts ~60 structured features per candidate, computes a weighted multi-factor relevance score, detects Hidden Gems that keyword ranking would miss, prioritizes recruiter actions via RAP scoring, and generates human-readable candidate narratives — all within strict runtime (< 300s) and memory (< 16 GB) constraints.
+AI-powered Talent Intelligence Platform that ranks, explains, and prioritizes 100,000 candidates against any technical role using multi-factor relevance scoring, Hidden Gem detection, Recruiter Action Prioritization (RAP), and deterministic narrative intelligence — all within 200 seconds on a single CPU core.
 
 ---
 
 ## Problem Statement
 
-Given a dataset of 100,000 candidate profiles containing professional profiles, career history, and Redrob platform behavioral signals, rank candidates by relevance to a Senior ML Engineer — RAG & Search role emphasizing:
+Traditional applicant tracking systems (ATS) rely on keyword matching — counting resume hits against a job description. This approach systematically undervalues three categories of candidates:
 
-- Vector database expertise (Pinecone, Weaviate, Qdrant, Milvus, Faiss)
-- Embeddings & dense retrieval (sentence-transformers, BGE, E5)
-- Ranking evaluation (NDCG, MRR, MAP, offline-to-online)
-- Python proficiency
-- LLM fine-tuning (LoRA, QLoRA, PEFT)
-- Learning-to-rank (XGBoost, LightGBM)
-- Distributed systems (Ray, Spark, Triton, ONNX)
-- NLP / Information Retrieval background
+1. **Adjacent-skill candidates** whose keyword count is moderate but whose underlying capabilities map directly to the role's core function (e.g., an NLP researcher who has built search pipelines but never used Pinecone by name)
+2. **High-intent, high-availability candidates** who are responsive, interview well, and can start quickly but whose resumes lack perfect keyword overlap
+3. **Underexposed experts** with strong technical signals (GitHub activity, skill assessments) but low recruiter visibility or platform engagement
+
+Aptiv solves this by modeling candidate quality across five independent dimensions — skill match, production experience, retrieval/ranking depth, behavioral engagement, and startup fit — then layering risk penalties, Hidden Gem detection, and recruiter action prioritization on top. The result is a ranking that captures genuine capability, not just keyword density.
 
 ---
 
-## Pipeline Architecture
+## Key Features
+
+| Feature | Description |
+|---|---|
+| **Multi-factor Candidate Ranking** | 5-component weighted scoring (skill match 0.40, production experience 0.25, retrieval/ranking 0.15, behavioral 0.10, startup fit 0.10) with risk penalties for data quality and honeypot inconsistencies. Final score [0, 1]. |
+| **Hidden Gem Detection** | 6-component score (behavioral excellence, skill adjacency, technical evidence, growth trajectory, market demand, recruitability) classifying candidates into 5 undervalued categories. |
+| **Recruiter Action Prioritization (RAP)** | 4-component urgency score (engagement velocity, availability, conversion likelihood, match baseline) mapping to 5 outreach priorities from "Contact Immediately" to "Do Not Prioritize." |
+| **Explainable AI Ranking** | Score breakdown by sub-component, pool-relative percentile ranking, JD alignment markers, strength/risk decomposition — every score is audit-able and recruiter-interpretable. |
+| **Narrative Intelligence** | Deterministic, hash-varied candidate briefings with 10 recruiter archetypes, 5 rank-based tiers, 8 distinct structural templates, and candidate-specific signal injection. Zero LLM calls. |
+| **Sandbox Interface** | Streamlit-based interactive platform: upload candidate data, run ranking, explore leaderboard, Hidden Gems, and RAP analysis, export results. |
+| **Submission-Compliant CSV Generation** | Single-command pipeline outputs `candidate_id, rank, score, reasoning` for top 100 candidates. Validator-compliant, deterministic, reproducible. |
+
+---
+
+## System Architecture
 
 ```
-Dataset (JSON/JSONL)
-    ↓
-candidate_parser.py    — Streaming parse → ~60 flat features + honeypot flags
-    ↓
-scorer.py              — 5 weighted sub-scores + risk penalty (incl. honeypot) → final_score [0,1]
-    ↓
-Ranking                — Sort by final_score DESC, candidate_id ASC → rank 1..N
-    ↓
-hidden_gem_detector.py — 6-component HG score → 5 categories + narrative
-    ↓
-rap_engine.py          — 4-component RAP score → priority + action + rationale
-    ↓
-narrative_generator.py — Archetype + tier + strength/risk synthesis → narrative
-    ↓
-submission.csv         — Top 100: candidate_id, rank, score, reasoning
+candidates.jsonl / sample_candidates.json
+        │
+        ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  candidate_parser.py                                                 │
+│  Streaming JSONL parser extracting ~60 structured features per       │
+│  candidate: skill keywords (9 categories, word-boundary regex for    │
+│  acronyms), disqualification heuristics (5 rules), behavioral        │
+│  signals (response rates, recency, interview completion, GitHub,     │
+│  salary expectations), data quality flags (chronology, salary,       │
+│  trust, honeypot inconsistencies).                                   │
+└──────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  scorer.py                                                           │
+│  Weighted composite scoring across 5 dimensions. Mandatory skills    │
+│  (vector DBs, embeddings, evaluation, Python) weighted 70% within    │
+│  skill match; preferred (LLM fine-tuning, learning-to-rank,          │
+│  distributed systems, NLP/IR) weighted 30%. Production experience    │
+│  capped at 8 YoE with penalties for pure research (0.1×) or          │
+│  consulting-only (0.7×). Retrieval/ranking score from binary         │
+│  signals. Behavioral score from response rate, recency, interview    │
+│  completion, and open-to-work. Startup fit penalized for title-      │
+│  chasers and consulting-only profiles. Risk penalty subtracts for    │
+│  chronology errors (-0.3), salary errors (-0.3), trust errors       │
+│  (-0.2), and honeypot flags (-0.3 each).                             │
+└──────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  hidden_gem_detector.py                                              │
+│  6-component Hidden Gem score (0-100) identifying undervalued        │
+│  candidates. Components: behavioral excellence (30%), skill          │
+│  adjacency — peaks near 0.4 skill match, not perfect overlap (20%),  │
+│  technical evidence via GitHub + assessments (20%), growth           │
+│  trajectory via startup fit (15%), market demand via profile views + │
+│  saves, log-scaled (10%), recruitability — open-to-work + relocation │
+│  (5%). Threshold ≥ 60 → 5 mutually exclusive categories.            │
+└──────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  rap_engine.py                                                       │
+│  Recruiter Action Prioritization (0-100). Four components:           │
+│  engagement velocity (35 pts): response rate, response speed,        │
+│  interview rate, recency; availability (25 pts): open-to-work,       │
+│  notice period, relocation, work-mode flexibility; conversion        │
+│  likelihood (20 pts): offer acceptance rate, interview rate, GitHub  │
+│  activity, profile completeness; match baseline (20 pts): final      │
+│  score capped. Maps to 5 priorities from "Contact Immediately"       │
+│  (≥80) to "Do Not Prioritize" (<25).                                │
+└──────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  narrative_generator.py                                              │
+│  Deterministic, recruiter-facing candidate briefings. Assigns 10     │
+│  archetypes (Production Veteran, Recruiter Favorite, Growth          │
+│  Candidate, Emerging Specialist, Startup Builder, Passive Expert,    │
+│  High Risk/High Reward, Hidden Gem, Product-Minded Engineer,         │
+│  High Conviction Hire) via scored rule system. 5 rank-based tiers    │
+│  (Tier 1: Interview Immediately through Tier 5: Not Recommended).    │
+│  8 structurally distinct narrative templates selected via            │
+│  candidate_id hash — each template uses hash-varied phrasing from    │
+│  12+ signal banks ensuring every narrative is unique. Every          │
+│  narrative includes: JD alignment marker, score breakdown, pool-     │
+│  relative percentile, strengths, concerns, recruiter action, and     │
+│  next-step recommendation.                                           │
+└──────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  generate_submission.py                                              │
+│  CLI orchestrator: parse → score → rank → HG → RAP → narratives →   │
+│  export. Single command processes 100K candidates. Outputs           │
+│  submission CSV with columns candidate_id, rank, score, reasoning    │
+│  (top 100). Internal DataFrame retains all enriched columns for      │
+│  analysis. Validator-compliant. Deterministic and reproducible.      │
+└──────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  app.py (Sandbox)                                                    │
+│  Streamlit interactive platform. Upload sample data, run full        │
+│  ranking pipeline, explore results through leaderboard view,         │
+│  Hidden Gem cards, RAP priority table, and candidate detail panels.  │
+│  Export ranked CSV, Hidden Gems CSV, RAP priorities CSV, and         │
+│  recruiter shortlist CSV directly from the browser.                  │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Capabilities
+## Scoring Methodology
 
-### 1. Candidate Parser (`candidate_parser.py`)
-Streaming JSONL parser extracting ~60 features per candidate:
-- **Skill Matching** — 9 keyword categories across skills + full-text (with word-boundary regex for acronyms)
-- **Disqualification Heuristics** — 5 rule-based checks (consulting-only, pure research, title chaser, inactive coder, domain mismatch)
-- **Behavioral Signals** — Response rates, activity recency, interview completion, GitHub activity, salary expectations
-- **Data Quality Flags** — Chronology errors, salary errors, trust errors, duplicate identity (informational)
+### Component Weights
 
-### 2. Ranking Engine (`scorer.py`)
-Weighted composite scoring with 5 components:
+| Component | Weight | Signals Measured |
+|---|---|---|
+| Skill Match | 0.40 | 70% mandatory (vector DBs, embeddings, evaluation, Python) + 30% preferred (LLM fine-tuning, learning-to-rank, distributed systems, NLP/IR) |
+| Production Experience | 0.25 | Years of experience capped at 8; penalized for pure research (0.1×) or consulting-only (0.7×) |
+| Retrieval / Ranking Experience | 0.15 | Binary: vector DB (0.4) + embeddings/dense retrieval (0.4) + NLP/IR (0.2) |
+| Behavioral Score | 0.10 | Recruiter response rate (40%) + login recency (30%) + interview completion (20%) + open-to-work (10%) |
+| Startup Fit | 0.10 | Base 1.0; penalized for title-chaser (-0.5) or consulting-only (-0.4) |
 
-| Component | Weight | Description |
-|-----------|--------|-------------|
-| Skill Match | 0.40 | 70% mandatory skills (vector DB, embeddings, eval, Python) + 30% preferred (LLM fine-tune, LTR, distributed, NLP/IR) |
-| Production Experience | 0.25 | YoE / 8 capped at 1.0; penalized for research (0.1×) or consulting-only (0.7×) |
-| Retrieval/Ranking Experience | 0.15 | Binary signals: vector DB (0.4) + embeddings (0.4) + NLP/IR (0.2) |
-| Behavioral | 0.10 | Response rate (40%) + recency (30%) + interview completion (20%) + open-to-work (10%) |
-| Startup Fit | 0.10 | Base 1.0; penalized for title chasing (-0.5) or consulting-only (-0.4) |
+### Risk Penalties
 
-**Risk Penalty:** Chronology error (-0.3) + Salary error (-0.3) + Trust error (-0.2).  
-**Final Score:** `weighted_sum - risk_penalty`, clipped to [0.0, 1.0].  
-*Note: `flag_duplicate_identity` is excluded from scoring penalties — it is a synthetic dataset artifact retained for informational reporting only.*
+| Flag | Penalty | Source |
+|---|---|---|
+| Chronology error | -0.30 | Employment timeline inconsistency |
+| Salary error | -0.30 | Salary expectation out of range |
+| Trust error | -0.20 | Known profile data quality issue |
+| Honeypot: timeline inflated | -0.30 | Suspiciously rapid career progression |
+| Honeypot: skill inflated | -0.30 | Unrealistic skill breadth |
+| Honeypot: title mismatch | -0.30 | Title does not match experience |
 
-### 3. Hidden Gem Detection (`hidden_gem_detector.py`)
-Identifies candidates that keyword-based ranking would undervalue, using a 6-component score (0-100):
+**Final Score =** `0.40 × SkillMatch + 0.25 × ProdExp + 0.15 × RetrievalRank + 0.10 × Behavioral + 0.10 × StartupFit − RiskPenalty`, clipped to [0.0, 1.0].
 
-| Component | Weight | What It Measures |
-|-----------|--------|-----------------|
-| Behavioral Excellence | 30% | Response rate, recency, interview completion |
-| Skill Adjacency | 20% | Peaks near 0.4 skill match — adjacent skills, not perfect keyword overlap |
-| Technical Evidence | 20% | GitHub activity + platform skill assessments |
-| Growth Trajectory | 15% | Startup fit score |
-| Market Demand | 10% | Profile views + recruiter saves (log-scaled) |
-| Recruitability | 5% | Open to work + willing to relocate |
+### Honeypot Detection
 
-Candidates scoring ≥ 60 are classified into 5 categories: **Emerging Specialist**, **Growth Candidate**, **High Intent Candidate**, **Underexposed Expert**, **Startup Builder** — each with a tailored recruiter briefing.
+The profile contains synthetic trap candidates with intentionally inflated timelines, broad skill claims, or title-to-experience mismatches. These are detected via heuristic rules during parsing and penalized in scoring. The `flag_duplicate_identity` signal (informational only) detects a synthetic dataset artifact — repeated name generation from a limited 50-name pool — and is explicitly excluded from scoring penalties.
 
-### 4. Recruiter Action Prioritization — RAP (`rap_engine.py`)
-Answers "Who should I contact first?" with a 0-100 score across 4 components:
+---
 
-| Component | Points | Signals |
-|-----------|--------|---------|
-| Engagement Velocity | 35 | Response rate, response speed, interview rate, recency |
-| Availability | 25 | Open to work, notice period, relocation, work mode |
-| Conversion Likelihood | 20 | Offer acceptance, interview rate, GitHub, profile completeness |
+## Hidden Gem Engine
+
+Hidden Gems are candidates whose true potential is not reflected in their keyword-based rank. The engine computes a 0–100 score across 6 components and classifies candidates scoring ≥ 60 into 5 categories:
+
+| Category | Detection Criteria | Recruiter Value |
+|---|---|---|
+| **Emerging Specialist** | Strong skill assessments but ≤ 4 JD keyword matches | Technical competence beyond resume keywords |
+| **Growth Candidate** | 2–5 YoE, behavioral score ≥ 0.75, startup fit ≥ 0.7 | High ceiling, coachable, motivated |
+| **High Intent Candidate** | Open to work, response rate ≥ 80%, interview rate ≥ 80%, active within 30 days | Ready to move, low friction to engage |
+| **Underexposed Expert** | Skill match ≥ 0.5, low recruiter visibility (< 10 views + saves), GitHub ≥ 50 | Strong technical signals overlooked by the market |
+| **Startup Builder** | Startup fit ≥ 0.8, distributed systems match, GitHub ≥ 50, willing to relocate | Full-stack ownership mentality |
+
+Each category includes a tailored 2–3 sentence recruiter briefing explaining why the candidate is valuable despite their ranking position.
+
+---
+
+## Recruiter Action Prioritization (RAP)
+
+RAP answers the recruiter's core question: *"Of these 100,000 candidates, who should I contact first?"* The score (0–100) is computed from 4 components:
+
+| Component | Max Points | Key Signals |
+|---|---|---|
+| Engagement Velocity | 35 | Response rate, response speed (hrs), interview rate, login recency |
+| Availability | 25 | Open to work, notice period, relocation willingness, work mode flexibility |
+| Conversion Likelihood | 20 | Offer acceptance rate, interview rate, GitHub activity, profile completeness |
 | Match Baseline | 20 | Final score (capped) |
 
-**Priority thresholds:** ≥80 Contact Immediately · ≥65 Priority Outreach · ≥45 Standard Outreach · ≥25 Long-Term Nurture · <25 Do Not Prioritize.
+### Priority Thresholds
 
-Each candidate receives a priority label, a specific recruiter action instruction, and a one-sentence rationale.
+| RAP Score | Priority | Implied Action |
+|---|---|---|
+| ≥ 80 | Contact Immediately | Reach out within 24 hours |
+| 65–79 | Priority Outreach | Schedule screen this week |
+| 45–64 | Standard Outreach | Add to active pipeline |
+| 25–44 | Long-Term Nurture | Monitor for re-engagement |
+| < 25 | Do Not Prioritize | Deprioritize in favor of higher-scoring candidates |
 
-### 5. Narrative Intelligence (`narrative_generator.py`)
-Generates deterministic, recruiter-facing candidate briefings with:
-
-- **7 Archetypes** — Strong Fit, Leadership-Oriented, Production Retrieval Specialist, Deep Technical Specialist, Startup Builder, High-Engagement Candidate, Growth Candidate
-- **5 Tiers** — Interview Immediately (top 2%) through Not Recommended (bottom 25%)
-- **Template Diversity** — 5 thesis templates, 5 differentiation templates, 4 verification templates, 4 next-step templates, 4 recruitability templates selected deterministically via candidate_id hash
-- **Section A:** Why this candidate (archetype + strengths)
-- **Section B:** What differentiates them (behavioral synthesis)
-- **Section C:** What to verify (risks + notice + salary)
-- **Section D:** Suggested action
-
-### 6. Submission Generator (`generate_submission.py`)
-CLI orchestrator that runs the full pipeline and outputs `submission.csv` with columns: `candidate_id, rank, score, reasoning` (top 100 only). Internal DataFrame retains all enriched columns (archetype, narrative, HG score, RAP score, etc.) for analysis and PPT material.
+Each RAP assignment includes a specific action instruction (e.g., "Send personalized outreach referencing their vector DB experience") and a one-sentence rationale.
 
 ---
 
-## Dataset Handling
+## Explainability Layer
 
-### Input Formats
-- **JSON** (`data/sample_candidates.json`) — Array of 50 candidate objects (quick demo)
-- **JSONL** (`data/candidates.jsonl`) — Streaming format, 100k candidates, ~465 MB
+Every ranking decision is accompanied by recruiter-interpretable justification:
 
-### Output
-- **`submission.csv`** — `candidate_id, rank, score, reasoning` (top 100 rows, ~0.1 MB)
+- **Score breakdown** — Sub-component scores (skill match, production, retrieval, behavioral, startup fit) visible per candidate
+- **Pool-relative percentile** — Where the candidate stands relative to the full 100K pool for each sub-score
+- **JD alignment markers** — Specific JD phrases (founding-team fit, production-over-research preference) matched against candidate signals
+- **Strength / risk decomposition** — Positive signals (keyword matches, GitHub activity, high response rate) and concerns (chronology errors, salary gaps, long notice periods) extracted and formatted
+- **Narrative generation** — Full recruiter-facing briefing with archetype classification, tier assignment, differentiation text, verification probes, and next-step recommendation. All phrasing varies deterministically by candidate_id hash — no two narratives are identical.
 
 ---
 
-## Usage
+## Sandbox Platform
 
-### Dependencies
+The interactive Streamlit interface (`app.py`) provides:
+
+| View | What It Shows |
+|---|---|
+| **Dataset Upload** | Drop a JSON/JSONL candidate file (or use the built-in 50-candidate sample) |
+| **Ranking Pipeline** | Run the full parse → score → rank → HG → RAP → narratives pipeline with progress indicators |
+| **Leaderboard** | Top 100 ranked candidates with score, archetype, tier, and expandable detail panels |
+| **Hidden Gems** | Filtered view of all Hidden Gem candidates with category labels and recruiter briefings |
+| **RAP Analysis** | Sorted by RAP score with priority labels, actions, and rationales |
+| **Candidate Detail** | Per-candidate: score radar chart, sub-score breakdown, positive signals, concerns, full narrative |
+| **Exports** | Ranked CSV, Hidden Gems CSV, RAP Priorities CSV, Recruiter Shortlist CSV — all with `candidate_id` as first column |
+
+Deployed configuration: headless mode, CORS disabled, dark theme. Falls back to `data/sample_candidates.json` (50 candidates) when the full 465 MB `candidates.jsonl` is unavailable.
+
+---
+
+## Repository Structure
+
+```
+Aptiv/
+├── app.py                          # Streamlit sandbox (interactive platform)
+├── generate_submission.py          # CLI pipeline orchestrator
+├── candidate_parser.py             # Feature extraction engine (~60 features)
+├── scorer.py                       # Multi-factor weighted scoring
+├── hidden_gem_detector.py          # Hidden Gem detection (6-component score)
+├── rap_engine.py                   # Recruiter Action Prioritization
+├── narrative_generator.py          # Narrative intelligence (10 archetypes)
+├── requirements.txt                # Dependencies: streamlit, pandas, numpy
+├── README.md                       # This file
+├── submission_metadata.yaml        # Challenge metadata
+├── .gitignore
+├── .streamlit/
+│   └── config.toml                 # Streamlit deployment configuration
+└── data/
+    ├── sample_candidates.json      # 50-candidate demo dataset
+    ├── candidates.jsonl            # 100,000 candidates (full dataset, 465 MB, gitignored)
+    ├── candidate_schema.json       # JSON schema reference
+    ├── validate_submission.py      # Official submission validator
+    ├── job_description.docx        # Challenge job specification
+    └── redrob_signals_doc.docx     # Redrob behavioral signals documentation
+```
+
+---
+
+## Installation
+
 ```bash
 pip install -r requirements.txt
 ```
 
-### Quick Start (50 candidates)
+Dependencies: `streamlit`, `pandas`, `numpy`. No GPU, no LLM API keys, no external services required.
+
+---
+
+## Run Sandbox
+
+```bash
+streamlit run app.py
+```
+
+Opens the interactive ranking platform in your browser. Uses the 50-candidate sample by default; upload a custom JSON/JSONL file for full analysis.
+
+---
+
+## Generate Submission
+
+### Full dataset (100,000 candidates)
+
+```bash
+python generate_submission.py --input data/candidates.jsonl --output Adhyatma_Singh_Chauhan.csv
+```
+
+### Quick demo (50 candidates)
+
 ```bash
 python generate_submission.py
 ```
 
-### Full Dataset (100k candidates)
-```bash
-python generate_submission.py --input data/candidates.jsonl --output submission.csv
-```
+### CLI Options
 
-### Options
-```bash
-python generate_submission.py --help
-```
 | Argument | Default | Description |
-|----------|---------|-------------|
+|---|---|---|
 | `--input` | `data/sample_candidates.json` | Input file (.json or .jsonl) |
 | `--output` | `submission.csv` | Output CSV path |
-| `--temp-jsonl` | `data/temp_candidates.jsonl` | Temp file for JSON input |
-| `--top-k` | `20` | Number of top candidates to display |
+| `--temp-jsonl` | `data/temp_candidates.jsonl` | Temp file for JSON→JSONL conversion |
+| `--top-k` | `20` | Number of top candidates to display in console |
 
 ---
 
-## Benchmark Results (100k candidates)
+## Validation
+
+```bash
+python data/validate_submission.py Adhyatma_Singh_Chauhan.csv
+```
+
+Expected output: `Submission is valid.`
+
+The validator checks: header format, 100-row count, `candidate_id` uniqueness, ID format compliance, source data existence, score range [0,1], monotonic ranking, tie-breaking order, and non-empty unique reasoning strings.
+
+---
+
+## Performance Benchmarks
+
+Tested on 4-core CPU, 16 GB RAM, Windows 10 — no GPU, no network.
+
+| Metric | Result |
+|---|---|
+| Total pipeline runtime (100K candidates) | ~199 seconds |
+| Peak DataFrame memory | ~205 MB |
+| Candidates processed | 100,000 |
+| Features extracted per candidate | ~60 |
+| Output rows (submission CSV) | 100 |
+| Execution | Deterministic, CPU-only |
+| Network dependency | None |
+
+### Stage Breakdown
 
 | Stage | Time | % of Total |
-|-------|------|------------|
-| Parsing | 170.7s | 65.3% |
-| Scoring | 0.2s | 0.1% |
-| Hidden Gem Detection | 18.3s | 7.0% |
-| RAP Computation | 39.2s | 15.0% |
-| Narrative Generation | 30.7s | 11.7% |
-| Export + Overhead | 2.3s | 0.9% |
-| **Total Pipeline** | **261.5s** | 100% |
-
-| Metric | Result | Constraint |
-|--------|--------|------------|
-| Total runtime | 261 seconds | < 300 seconds ✅ |
-| Peak memory (DataFrame) | 285 MB | < 16 GB ✅ |
-| Candidates processed | 100,000 | — |
-| Output format | `candidate_id, rank, score, reasoning` (top 100) | ✅ |
-| Validator passes | Yes | ✅ |
-| Honeypots in top 100 | 0 / 100 (0%) | < 10% ✅ |
+|---|---|---|
+| Parsing | ~130s | 65% |
+| Scoring | ~0.2s | <1% |
+| Hidden Gem Detection | ~14s | 7% |
+| RAP Computation | ~30s | 15% |
+| Narrative Generation | ~23s | 12% |
+| Export + Overhead | ~2s | 1% |
 
 ---
 
-## Project Structure
+## Submission Compliance
 
-```
-Aptiv/
-├── generate_submission.py      # Pipeline orchestrator (CLI entry)
-├── candidate_parser.py         # Feature extraction engine
-├── scorer.py                   # Weighted scoring model
-├── narrative_generator.py      # Narrative intelligence + archetypes
-├── hidden_gem_detector.py      # Hidden Gem detection
-├── rap_engine.py               # Recruiter Action Prioritization
-├── benchmark_parser.py         # Performance benchmarking utility
-├── EDA.ipynb                   # Exploratory data analysis
-├── README.md                   # This file
-├── architecture.md             # Technical architecture deep-dive
-├── requirements.txt            # Python dependencies
-├── .gitignore                  # Git exclusion rules
-└── data/
-    ├── sample_candidates.json  # 50-candidate demo dataset
-    ├── candidates.jsonl        # 100,000 candidates (full dataset)
-    ├── candidate_schema.json   # JSON schema reference
-    ├── job_description.docx    # Job specification
-    └── redrob_signals_doc.docx # Redrob signals documentation
-```
+| Requirement | Status |
+|---|---|
+| Validator compliance | ✅ PASS |
+| Top 100 candidates | ✅ 100 rows |
+| Score range [0, 1] | ✅ 0.8435–0.9865 |
+| Monotonically non-increasing scores | ✅ Verified |
+| Tie-breaking by candidate_id ASC | ✅ Verified |
+| All candidate_ids unique | ✅ Verified |
+| All candidate_ids exist in source | ✅ Verified |
+| All reasoning non-empty | ✅ Verified |
+| All reasoning unique (100/100) | ✅ Verified |
+| Deterministic ranking | ✅ Same input → same output |
+| Reproducible pipeline | ✅ Single command, no external dependencies |
 
 ---
 
-## Future Improvements
+## Future Enhancements
 
-- [ ] Incremental / streaming scoring for datasets >1M candidates
-- [ ] Configurable weight profiles via YAML/JSON
-- [ ] Explainability layer (SHAP values per candidate)
-- [ ] A/B testing framework for weight optimization
-- [ ] Integration with Redrob API for real-time signals
-- [ ] Support for custom disqualification rules
-- [ ] Docker containerization for deployment
-- [ ] Unit test suite
+- **Real-time ATS integration** — Webhook-based ingestion from Greenhouse, Lever, Ashby for live candidate scoring as profiles enter the pipeline
+- **LLM-assisted recruiter workflows** — Optional LLM enhancement for narrative refinement while keeping ranking deterministic
+- **Talent graph analytics** — Cross-candidate relationship modeling (shared employers, schools, skill clusters) for team-building insights
+- **Interview prediction models** — ML-based interview stage outcome prediction using RAP signals as features
+- **Configurable weight profiles** — YAML/JSON-based weight configuration for different role families (ML Engineer, Product Manager, Designer)
+- **Incremental scoring** — Streaming architecture for datasets exceeding 1M candidates without full reprocessing
+- **Docker containerization** — Production-ready deployment with Docker + docker-compose for cloud-native environments
+
+---
+
+## About
+
+Aptiv was built as an AI Talent Intelligence Platform — a system designed to surface the candidates that keyword-based filtering misses, explain why each ranking decision was made, and tell recruiters exactly who to contact first and why.
