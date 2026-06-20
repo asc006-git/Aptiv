@@ -39,6 +39,11 @@ env/
 # Logs
 *.log
 
+# Temp audit/verify artifacts
+__tmp_*.py
+*_verify.csv
+*_from_app.py
+
 # Build/temp artifacts
 build_commit.py
 ng_target.py
